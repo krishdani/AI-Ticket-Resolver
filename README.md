@@ -1,3 +1,12 @@
+---
+title: AI Ticket Resolver
+emoji: 🎫
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+pinned: false
+---
+
 # 🎫 AI Customer Support Ticket Resolver (OpenEnv)
 
 This repository contains a Reinforcement Learning (RL) environment for training and evaluating AI agents on customer support tasks. Built using the **OpenEnv** specification.
