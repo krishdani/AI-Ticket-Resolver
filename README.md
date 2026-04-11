@@ -1,75 +1,101 @@
 ---
-title: AI Ticket Resolver
+title: AI Customer Support Resolver
 emoji: 🎫
 colorFrom: blue
 colorTo: indigo
 sdk: docker
 pinned: false
+app_port: 7860
+tags:
+  - openenv
+  - reinforcement-learning
+  - customer-support
 ---
 
 # 🎫 AI Customer Support Ticket Resolver (OpenEnv)
 
-This repository contains a Reinforcement Learning (RL) environment for training and evaluating AI agents on customer support tasks. Built using the **OpenEnv** specification.
+This repository contains a Reinforcement Learning (RL) environment for training and evaluating AI agents on real-world customer support tasks. Built using the **OpenEnv** specification.
 
-## 🚀 Overview
+## 🚀 Quick Start
 
-The environment simulates a customer support dashboard where an RL agent must resolve incoming tickets. The agent can classify issues, request information, offer refunds or replacements, and escalate or close tickets.
+The environment simulates a customer support dashboard. You can run it locally with Docker or via Python.
 
-### ✨ Key Features
-- **Real-world Scenarios**: Tasks range from simple refunds to complex shipping delays.
-- **Dense Reward System**: Immediate feedback for correct classifications and actions.
-- **Deterministic Grading**: Transparent scoring logic (0.01 - 0.99).
-- **Premium UI**: Interactive dashboard for manual testing and visualization.
-
-## 🛠️ Project Structure
-```text
-project/
-├── env/
-│   ├── env.py      # Core RL logic
-│   ├── models.py   # Pydantic schemas
-│   ├── tasks.py    # Task definitions
-│   └── grader.py   # Trajectory scoring
-├── static/         # Frontend assets
-├── openenv.yaml    # Environment configuration
-├── inference.py    # Baseline agent script
-├── app.py          # FastAPI Server
-└── Dockerfile      # Containerization
+### 🏃 Running with Docker
+```bash
+docker build -t ai-ticket-resolver .
+docker run -p 7860:7860 ai-ticket-resolver
 ```
 
-## 🏃 Running Locally
-
+### 🐍 Running with Python
 1. **Install Dependencies**:
    ```bash
    pip install -r requirements.txt
    ```
-
-2. **Start the Environment**:
+2. **Start the Server**:
    ```bash
    python app.py
    ```
    Open `http://localhost:7860` to access the interactive dashboard.
 
-3. **Run Baseline Inference**:
-   ```bash
-   python inference.py
-   ```
+## 🧠 Environment Design
 
-## 🎮 Action Space
-- `classify_issue`: Identify the core problem.
-- `request_more_info`: Ask the customer for details.
-- `offer_refund`: Resolve via money back.
-- `offer_replacement`: Resolve via new product.
-- `escalate`: Send to a human agent.
-- `close_ticket`: Finalize the session.
+### 🎯 Use Case
+The environment models a genuine customer support task where an agent must handle incoming tickets. It requires multi-step reasoning:
+1. **Understand** the customer's issue from text and history.
+2. **Classify** the problem correctly.
+3. **Decide** on the best resolution (Refund, Replacement, or more Info).
+4. **Close** the ticket only when the goal is met.
 
-## 📊 Reward Function
-| Action | Reward |
+### 🛠️ Project Structure
+```text
+ai-ticket-resolver/
+├── env/
+│   ├── env.py          # Core RL Environment logic (OpenEnv compatible)
+│   ├── models.py       # Pydantic Action/Observation schemas
+│   ├── tasks.py        # Task definitions (Easy, Medium, Hard)
+│   └── grader.py       # Deterministic trajectory scoring (0.0 - 1.0)
+├── static/             # Premium HTML/CSS dashboard
+├── openenv.yaml        # OpenEnv manifest and schemas
+├── inference.py        # Baseline LLM inference script (Mandatory logs)
+├── app.py              # FastAPI Server (HTTP endpoints)
+└── Dockerfile          # Container image definition
+```
+
+### 🎮 Action Space
+The agent takes actions using the `Action` model:
+- `classify_issue`: Categorize the ticket (e.g., "refund", "replacement").
+- `request_more_info`: Ask for details if the case is ambiguous.
+- `offer_refund`: Process a refund for broken items.
+- `offer_replacement`: Process a replacement for defective items.
+- `escalate`: Transfer to a human supervisor (useful for complex/unsolvable cases).
+- `close_ticket`: Finalize the interaction.
+
+### 📊 Observation Space
+The `TicketState` observation includes:
+- `ticket_text`: The current customer complaint.
+- `customer_history`: Past interactions and loyalty info.
+- `status`: Current lifecycle (open, classified, resolved, etc.).
+- `history`: List of all actions taken in the current episode.
+
+## 🏆 Scoring & Rewards
+- **Dense Rewards**: Immediate feedback for each step (e.g., +0.3 for correct classification).
+- **Deterministic Grading**: Final score (0.0 - 1.0) calculated by `grader.py` based on the efficiency and outcome of the full trajectory.
+
+| Milestone | Reward |
 | :--- | :--- |
 | Correct Classification | +0.3 |
 | Correct Resolution | +0.5 |
 | Closing Resolved Ticket | +0.2 |
 | Incorrect Action | -0.3 |
-| Unnecessary Step | -0.1 |
+
+## 🧪 Baseline Inference
+The `inference.py` script runs a baseline agent against all tasks. It uses the OpenAI API client and outputs mandatory structured logs:
+```bash
+export API_BASE_URL="your-api-url"
+export MODEL_NAME="your-model-name"
+export HF_TOKEN="your-hf-token"
+python inference.py
+```
 
 ---
-*Created for the OpenEnv RL Hackathon.*
+*Created for the OpenEnv RL Hackathon. This environment fills a gap in real-world reasoning tasks for LLM-based agents.*

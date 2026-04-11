@@ -94,16 +94,18 @@ async def step(req: StepRequest) -> Dict[str, Any]:
         raise HTTPException(status_code=404, detail="Session not found. Call /reset first.")
 
     env = envs[req.session_id]
-    state, reward = env.step(req.action)
+    state, reward_val, done, info = env.step(req.action)
 
     score = None
-    if reward.done:
+    if done:
         score = grade_trajectory(env.task_id, state.history)
-        del envs[req.session_id]
+        # Keep env for a bit or delete? Usually keep for /state check unless it's a one-shot.
+        # del envs[req.session_id] 
 
     return {
         "state": state.model_dump(),
-        "reward": reward.model_dump(),
+        "reward": {"value": reward_val, "reason": info.get("reason", ""), "done": done},
+        "done": done,
         "score": score,
     }
 
@@ -112,7 +114,7 @@ async def step(req: StepRequest) -> Dict[str, Any]:
 def get_state(session_id: str) -> Dict[str, Any]:
     if session_id not in envs:
         raise HTTPException(status_code=404, detail="Session not found.")
-    return envs[session_id].get_state().model_dump()
+    return envs[session_id].state().model_dump()
 
 
 @app.get("/tasks")
@@ -139,8 +141,8 @@ def validate() -> Dict[str, Any]:
         rewards = []
         for action_type in seq:
             payload = TASKS[task_id].get("expected_category", "") if action_type == "classify_issue" else None
-            _, reward = env.step(Action(action_type=action_type, payload=payload))
-            rewards.append(reward.value)
+            _, r_val, done, info = env.step(Action(action_type=action_type, payload=payload))
+            rewards.append(r_val)
         score = grade_trajectory(task_id, env.state.history)
         results.append({"task_id": task_id, "score": score, "rewards": rewards})
     return {"status": "ok", "results": results}

@@ -1,9 +1,10 @@
 import uuid
 from typing import Tuple, Dict, Any
-from .models import TicketState, Action, Reward
+from openenv.core.env_server.interfaces import Environment
+from .models import TicketState, Action
 from .tasks import TASKS
 
-class CustomerSupportEnv:
+class CustomerSupportEnv(Environment):
     def __init__(self, task_id: str = "easy_refund"):
         self.task_id = task_id
         self.task_data = TASKS.get(task_id, TASKS["easy_refund"])
@@ -20,24 +21,25 @@ class CustomerSupportEnv:
         )
         return self.state
 
-    def get_state(self) -> TicketState:
+    def state(self) -> TicketState:
         return self.state
 
-    def step(self, action: Action) -> Tuple[TicketState, Reward]:
+    def step(self, action: Action) -> Tuple[TicketState, float, bool, Dict[str, Any]]:
         self.state.current_step += 1
         reward_val = 0.0
         reason = ""
         done = False
 
         action_type = action.action_type
+        # Record history for grading
         self.state.history.append({"step": self.state.current_step, "action": action_type, "payload": action.payload})
 
         # Logic for classifications
         if action_type == "classify_issue":
             if self.state.status == "open":
                 expected = self.task_data["expected_category"].lower()
-                provided = action.payload.lower() if action.payload else ""
-                if provided == expected or expected in provided:
+                provided = (action.payload or "").lower()
+                if provided == expected or (expected in provided and len(provided) > 2):
                     reward_val = 0.3
                     reason = f"Correct classification: {action.payload}"
                     self.state.status = "classified"
@@ -72,7 +74,6 @@ class CustomerSupportEnv:
             if self.task_id == "hard_delay_case":
                 reward_val = 0.4
                 reason = "Correct step: Requesting info for delay"
-                # For hard case, we might need more steps
             else:
                 reward_val = -0.1
                 reason = "Unnecessary info request"
@@ -89,7 +90,7 @@ class CustomerSupportEnv:
                 done = True
 
         elif action_type == "escalate":
-            reward_val = -0.1 # Generic penalty for escalation unless needed
+            reward_val = -0.1 
             reason = "Escalated to human supervisor"
             self.state.status = "escalated"
             done = True
@@ -101,4 +102,5 @@ class CustomerSupportEnv:
             if self.state.current_step >= 8:
                 done = True
 
-        return self.state, Reward(value=reward_val, reason=reason, done=done)
+        info = {"reason": reason, "task_id": self.task_id}
+        return self.state, reward_val, done, info

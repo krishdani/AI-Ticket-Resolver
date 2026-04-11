@@ -1,3 +1,6 @@
+spec_version: 1
+type: space
+runtime: fastapi
 name: ai_customer_support_resolver
 version: 1.0.0
 description: >
@@ -58,7 +61,7 @@ observation_schema:
     history:         { type: array }
 
 reward_range: [-1.0, 1.0]
-score_range:  [0.001, 0.999]
+score_range:  [0.0, 1.0]
 max_steps: 8
 
 endpoints:
@@ -66,3 +69,5 @@ endpoints:
   step:  POST /step
   state: GET  /state
   health: GET /health
+app: app:app
+port: 7860

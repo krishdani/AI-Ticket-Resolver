@@ -37,4 +37,4 @@ def grade_trajectory(task_id: str, trajectory: List[Dict[str, Any]]) -> float:
     if len(actions_taken) <= len(task["expected_sequence"]) + 1:
         score += 0.1
 
-    return min(max(score, 0.01), 0.99) # Clamp between 0.01 and 0.99 as per previous conversation context
+    return min(max(score, 0.0), 1.0)

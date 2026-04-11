@@ -1,7 +1,8 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional, Literal, Dict, Any
+from openenv.core.env_server.types import Action as BaseAction, Observation as BaseObservation
 
-class TicketState(BaseModel):
+class TicketState(BaseObservation):
     ticket_id: str
     ticket_text: str
     customer_history: str
@@ -11,7 +12,7 @@ class TicketState(BaseModel):
     resolution_action: Optional[str] = None
     history: List[Dict[str, Any]] = []
 
-class Action(BaseModel):
+class Action(BaseAction):
     action_type: Literal["classify_issue", "request_more_info", "offer_refund", "offer_replacement", "escalate", "close_ticket"]
     payload: Optional[str] = None
 
