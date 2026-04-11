@@ -29,12 +29,12 @@ def get_llm_action(task_id: str, state_json: str) -> Action:
     system_prompt = (
         "You are an AI customer support agent. Your goal is to resolve the customer's issue efficiently.\n"
         "You can take the following actions:\n"
-        "1. classify_issue (payload: category like 'refund', 'replacement', or 'spam')\n"
-        "2. request_more_info (gather missing details if needed)\n"
-        "3. offer_refund (give money back for 'refund' cases)\n"
-        "4. offer_replacement (send new items for 'replacement' cases)\n"
-        "5. close_ticket (finalize once resolved or if spam)\n"
-        "Workflow: Classify -> (Optional) Request Info -> Resolution -> Close.\n"
+        "1. classify_issue (payload: category name e.g. refund, replacement, shipping_delay)\n"
+        "2. request_more_info (ask for more details)\n"
+        "3. offer_refund (give money back)\n"
+        "4. offer_replacement (send a new item)\n"
+        "5. escalate (send to a human)\n"
+        "6. close_ticket (finalize once resolved)\n"
         "Respond ONLY with a JSON object like: {\"action_type\": \"...\", \"payload\": \"...\"}"
     )
     user_prompt = f"Current State: {state_json}\nTask: {task_id}\nWhat is your next action?"

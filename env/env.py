@@ -1,20 +1,16 @@
 import uuid
-from typing import Tuple, Dict, Any, List
+from typing import Tuple, Dict, Any
 from openenv.core.env_server.interfaces import Environment
 from .models import TicketState, Action
 from .tasks import TASKS
 
 class CustomerSupportEnv(Environment):
-    def __init__(self, task_id: str = "medium_refund"):
+    def __init__(self, task_id: str = "easy_refund"):
         self.task_id = task_id
-        if task_id not in TASKS:
-            task_id = list(TASKS.keys())[0]
-            self.task_id = task_id
-            
-        self.task_data = TASKS[self.task_id]
+        self.task_data = TASKS.get(task_id, TASKS["easy_refund"])
         self.reset()
 
-    def reset(self, **kwargs) -> TicketState:
+    def reset(self) -> TicketState:
         self.state = TicketState(
             ticket_id=str(uuid.uuid4())[:8],
             ticket_text=self.task_data["ticket_text"],
@@ -57,45 +53,35 @@ class CustomerSupportEnv(Environment):
 
         # Logic for actions
         elif action_type == "offer_refund":
-            if self.state.status in ["classified", "info_requested"] and self.task_id == "medium_refund":
+            if self.task_id == "easy_refund":
                 reward_val = 0.5
                 reason = "Correct resolution: Refund offered"
                 self.state.status = "resolved"
             else:
                 reward_val = -0.3
-                reason = "Refund was not the correct action or was premature"
+                reason = "Refund was not the correct action"
         
         elif action_type == "offer_replacement":
-            if self.task_id == "hard_complex_replacement":
-                if self.state.status == "info_requested":
-                    reward_val = 0.5
-                    reason = "Correct resolution: Replacement offered after info gathered"
-                    self.state.status = "resolved"
-                else:
-                    reward_val = -0.1
-                    reason = "Must request more info before replacing for this case"
+            if self.task_id == "medium_replacement":
+                reward_val = 0.5
+                reason = "Correct resolution: Replacement offered"
+                self.state.status = "resolved"
             else:
                 reward_val = -0.3
                 reason = "Replacement was not the correct action"
 
         elif action_type == "request_more_info":
-            if self.task_id == "hard_complex_replacement" and self.state.status == "classified":
-                reward_val = 0.3
-                reason = "Correct step: Requesting critical info"
-                self.state.status = "info_requested"
+            if self.task_id == "hard_delay_case":
+                reward_val = 0.4
+                reason = "Correct step: Requesting info for delay"
             else:
                 reward_val = -0.1
                 reason = "Unnecessary info request"
 
         elif action_type == "close_ticket":
-            if self.state.status == "resolved":
+            if self.state.status in ["resolved", "classified"] or self.task_id == "hard_delay_case":
                 reward_val = 0.2
                 reason = "Ticket closed correctly"
-                self.state.status = "closed"
-                done = True
-            elif self.task_id == "easy_spam_case" and self.state.status == "open":
-                reward_val = 1.0 # One-step success
-                reason = "Closed spam ticket correctly"
                 self.state.status = "closed"
                 done = True
             else:
@@ -104,17 +90,17 @@ class CustomerSupportEnv(Environment):
                 done = True
 
         elif action_type == "escalate":
-            reward_val = -0.2 
+            reward_val = -0.1 
             reason = "Escalated to human supervisor"
             self.state.status = "escalated"
             done = True
 
-        # Global Step Penalty (Efficiency)
-        reward_val -= 0.05
-        
-        # Max steps boundary
-        if self.state.current_step >= 8:
-            done = True
+        # Penalty for too many steps
+        if self.state.current_step > 5:
+            reward_val -= 0.1
+            reason += " (Step penalty)"
+            if self.state.current_step >= 8:
+                done = True
 
         info = {"reason": reason, "task_id": self.task_id}
         return self.state, reward_val, done, info
