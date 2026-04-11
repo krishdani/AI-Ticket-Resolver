@@ -69,11 +69,11 @@ class CustomerSupportEnv(Environment):
                     self.state.status = "classified"
                     self.state.issue_category = action.payload
                 else:
-                    reward_val = -0.2
-                    reason = f"Incorrect classification: {action.payload}"
+                    reward_val = 0.0
+                    reason = f"Incorrect classification: {action.payload}. (No reward)"
             else:
-                reward_val = -0.1
-                reason = "Already classified"
+                reward_val = 0.0
+                reason = "Already classified. (No reward)"
 
         # Logic for resolutions
         elif action_type == "offer_refund":
@@ -82,8 +82,8 @@ class CustomerSupportEnv(Environment):
                 reason = "Correct resolution: Refund offered"
                 self.state.status = "resolved"
             else:
-                reward_val = -0.3
-                reason = "Refund was not the correct action"
+                reward_val = 0.0
+                reason = "Refund was not the correct action. (No reward)"
         
         elif action_type == "offer_replacement":
             if self.current_ticket["category"] == "replacement":
@@ -91,16 +91,16 @@ class CustomerSupportEnv(Environment):
                 reason = "Correct resolution: Replacement offered"
                 self.state.status = "resolved"
             else:
-                reward_val = -0.3
-                reason = "Replacement was not the correct action"
+                reward_val = 0.0
+                reason = "Replacement was not the correct action. (No reward)"
 
         elif action_type == "request_more_info":
             if self.current_ticket["category"] == "shipping_delay":
                 reward_val = 0.4
                 reason = "Correct step: Requesting info for delay"
             else:
-                reward_val = -0.1
-                reason = "Unnecessary info request"
+                reward_val = 0.0
+                reason = "Unnecessary info request. (No reward)"
 
         elif action_type == "close_ticket":
             if self.state.status in ["resolved", "classified"] or self.current_ticket["category"] == "shipping_delay":
@@ -116,13 +116,13 @@ class CustomerSupportEnv(Environment):
                 else:
                     done = True
             else:
-                reward_val = -0.5
-                reason = "Closed ticket without resolution"
+                reward_val = 0.0
+                reason = "Closed ticket without resolution. (No reward)"
                 done = True
 
         elif action_type == "escalate":
-            reward_val = -0.1 
-            reason = "Escalated to human supervisor"
+            reward_val = 0.0
+            reason = "Escalated to human supervisor. (No reward)"
             self.state.status = "escalated"
             
             # Logic: Load next ticket even if escalated?
@@ -132,10 +132,10 @@ class CustomerSupportEnv(Environment):
             else:
                 done = True
 
-        # Penalty for too many steps on one ticket
+        # Penalty for too many steps on one ticket (Efficiency)
         if self.state.current_step > 5:
-            reward_val -= 0.1
-            reason += " (Efficiency penalty)"
+            # We don't subtract, we just might cap future rewards or just log it
+            reason += " (Efficiency warning: took more than 5 steps)"
             if self.state.current_step >= 8:
                 # Force next ticket or end
                 self.queue.pop(0)
