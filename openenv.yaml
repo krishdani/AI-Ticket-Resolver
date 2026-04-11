@@ -1,0 +1,68 @@
+name: ai_customer_support_resolver
+version: 1.0.0
+description: >
+  Reinforcement Learning environment for resolving customer support tickets.
+  An agent must classify issues, choose the correct resolution action,
+  and close tickets efficiently to maximise reward.
+
+tasks:
+  - id: easy_refund
+    name: Easy — Refund Request
+    difficulty: easy
+    grader: env.grader.grade_trajectory
+    description: Customer received a broken item and wants a full refund.
+
+  - id: medium_replacement
+    name: Medium — Replacement Request
+    difficulty: medium
+    grader: env.grader.grade_trajectory
+    description: Customer wants a working replacement, not a refund.
+
+  - id: hard_delay_case
+    name: Hard — Shipping Delay
+    difficulty: hard
+    grader: env.grader.grade_trajectory
+    description: >
+      Package is in transit. Customer still needs the item — do NOT refund.
+      Correct action is to request more info, then close.
+
+action_schema:
+  type: object
+  properties:
+    action_type:
+      type: string
+      enum:
+        - classify_issue
+        - request_more_info
+        - offer_refund
+        - offer_replacement
+        - escalate
+        - close_ticket
+    payload:
+      type: string
+      nullable: true
+  required:
+    - action_type
+
+observation_schema:
+  type: object
+  properties:
+    ticket_id:       { type: string }
+    ticket_text:     { type: string }
+    customer_history:{ type: string }
+    current_step:    { type: integer }
+    status:
+      type: string
+      enum: [open, classified, resolved, closed, escalated]
+    issue_category:  { type: string, nullable: true }
+    history:         { type: array }
+
+reward_range: [-1.0, 1.0]
+score_range:  [0.001, 0.999]
+max_steps: 8
+
+endpoints:
+  reset: POST /reset
+  step:  POST /step
+  state: GET  /state
+  health: GET /health
