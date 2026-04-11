@@ -110,6 +110,36 @@ async def step(req: StepRequest) -> Dict[str, Any]:
     }
 
 
+class RaiseTicketRequest(BaseModel):
+    session_id: str
+    subject: str
+    body: str
+    customer_history: str
+    priority: str
+    category: str
+
+
+@app.post("/raise_ticket")
+async def raise_ticket(req: RaiseTicketRequest) -> Dict[str, Any]:
+    if req.session_id not in envs:
+        raise HTTPException(status_code=404, detail="Session not found.")
+    
+    env = envs[req.session_id]
+    env.queue.append({
+        "id": os.urandom(4).hex(),
+        "text": f"{req.subject}: {req.body}",
+        "history": req.customer_history,
+        "priority": req.priority,
+        "category": req.category
+    })
+    
+    # Sort after adding to maintain priority order
+    prio_map = {"high": 3, "medium": 2, "low": 1, "hard": 3, "easy": 1}
+    env.queue.sort(key=lambda x: prio_map.get(x["priority"], 2), reverse=True)
+    
+    return {"status": "ok", "queue_size": len(env.queue)}
+
+
 @app.get("/state")
 def get_state(session_id: str) -> Dict[str, Any]:
     if session_id not in envs:

@@ -26,7 +26,431 @@
       --glow:        0 0 24px rgba(108,99,255,.25);
     }
 
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    /* ── Queue Badge ───────────────────────────────────── */
+    .queue-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: .75rem;
+      font-weight: 700;
+      color: var(--accent);
+      background: rgba(0,212,170,.1);
+      padding: 4px 12px;
+      border-radius: 20px;
+      border: 1px solid rgba(0,212,170,.2);
+    }
+
+    /* ── Modal ─────────────────────────────────────────── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.8);
+      backdrop-filter: blur(8px);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-content {
+      background: var(--surface);
+      width: 90%;
+      max-width: 500px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      padding: 32px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+
+    .modal-form {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .form-group label { font-size: .8rem; color: var(--text-muted); font-weight: 600; }
+
+    .form-input, .form-select {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      padding: 10px;
+      border-radius: 8px;
+      color: var(--text);
+      outline: none;
+    }
+
+    .form-input:focus, .form-select:focus { border-color: var(--primary); }
+
+    .btn-submit {
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 12px;
+      border-radius: 8px;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+
+    .btn-close-modal {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1.5rem;
+      cursor: pointer;
+    }
+    
+    .priority-pill {
+      font-size: .65rem;
+      font-weight: 800;
+      padding: 2px 8px;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+    .prio-high   { border: 1px solid #ff6b6b; color: #ff6b6b; }
+    .prio-medium { border: 1px solid #ffd166; color: #ffd166; }
+    .prio-low    { border: 1px solid #6c63ff; color: #6c63ff; }
+  </style>
+</head>
+<body>
+
+  <!-- ── Header ─────────────────────────────────────── -->
+  <header>
+    <div class="logo">
+      <div class="logo-icon">🎫</div>
+      <div>
+        <h1>AI Support Resolver</h1>
+        <div style="font-size:.7rem;color:var(--text-muted);margin-top:1px;">OpenEnv Multi-Ticket Session</div>
+      </div>
+    </div>
+    <div style="display:flex; align-items:center; gap:16px;">
+      <div id="queueCounter" class="queue-badge" style="display:none;">
+        <span>📦</span> <span id="queueSize">1</span> Ticket in Queue
+      </div>
+      <button class="task-btn" style="background:var(--primary); color:white; border:none;" onclick="openModal()">➕ Raise Ticket</button>
+      <span class="header-badge">HACKATHON READY</span>
+    </div>
+  </header>
+
+  <!-- ── Modal ─────────────────────────────────────── -->
+  <div class="modal-overlay" id="ticketModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 style="font-size:1.4rem;">Raise New Ticket</h2>
+        <button class="btn-close-modal" onclick="closeModal()">×</button>
+      </div>
+      <div class="modal-form">
+        <div class="form-group">
+          <label>Subject</label>
+          <input type="text" id="newSubject" class="form-input" placeholder="e.g. Broken Item" />
+        </div>
+        <div class="form-group">
+          <label>Description</label>
+          <textarea id="newBody" class="form-input" style="min-height:80px;" placeholder="Describe the issue..."></textarea>
+        </div>
+        <div class="form-group">
+            <label>Priority</label>
+            <select id="newPriority" class="form-select">
+              <option value="low">Low</option>
+              <option value="medium" selected>Medium</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+        <div class="form-group">
+          <label>Category</label>
+          <select id="newCategory" class="form-select">
+            <option value="refund">Refund</option>
+            <option value="replacement">Replacement</option>
+            <option value="shipping_delay">Shipping Delay</option>
+          </select>
+        </div>
+        <button class="btn-submit" onclick="submitTicket()">Add to Queue</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Task Selector ──────────────────────────────── -->
+  <div class="task-bar">
+    <label>Start Session:</label>
+    <button id="btn-easy"   class="task-btn easy   active" onclick="resetEnv('easy_refund',this)">🟢 Start with Easy Task</button>
+    <button id="btn-medium" class="task-btn medium"        onclick="resetEnv('medium_replacement',this)">🟡 Start with Medium Task</button>
+    <button id="btn-hard"   class="task-btn hard"          onclick="resetEnv('hard_delay_case',this)">🔴 Start with Hard Task</button>
+  </div>
+
+  <!-- ── Main ──────────────────────────────────────── -->
+  <div class="main">
+
+    <!-- Left: Ticket + Log -->
+    <div class="ticket-panel">
+      <div class="section-label" style="display:flex; justify-content:space-between;">
+          <span>Active Ticket</span>
+          <span id="ticketPrio" class="priority-pill prio-medium">Normal</span>
+      </div>
+
+      <div class="ticket-card" id="ticketCard">
+        <div class="ticket-meta">
+          <span class="ticket-id" id="ticketId">ID: --------</span>
+          <span class="status-pill status-open" id="statusBadge">open</span>
+        </div>
+        <div class="ticket-body" id="ticketText">Select a difficulty level to start session…</div>
+        <div class="history-strip">
+          👤 <span id="customerHistory">—</span>
+        </div>
+      </div>
+
+      <div class="section-label" style="margin-top:24px;">Processing Logs</div>
+      <div class="step-log" id="stepLog">
+        <div class="empty-log" id="emptyLog">Ready for dispatch...</div>
+      </div>
+    </div>
+
+    <!-- Right: Controls -->
+    <div class="control-panel">
+      <div class="controls-inner">
+
+        <!-- Payload -->
+        <div>
+          <div class="section-label">Classification Label</div>
+          <input id="actionPayload" class="payload-input" type="text"
+                 placeholder="e.g. refund, replacement, shipping_delay" />
+          <div id="currentLabel" style="font-size: .75rem; color: var(--accent); margin-top: 8px; display: none; font-weight: 600;">
+            Current Identity: <span id="labelVal">—</span>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div>
+          <div class="section-label">Available Actions</div>
+          <div class="action-grid">
+            <button class="act-btn" id="act-classify"     onclick="takeAction('classify_issue')">
+              <span class="icon">🏷️</span>Classify Issue
+            </button>
+            <button class="act-btn" id="act-info"         onclick="takeAction('request_more_info')">
+              <span class="icon">❓</span>Request Info
+            </button>
+            <button class="act-btn" id="act-refund"       onclick="takeAction('offer_refund')">
+              <span class="icon">💰</span>Offer Refund
+            </button>
+            <button class="act-btn" id="act-replacement"  onclick="takeAction('offer_replacement')">
+              <span class="icon">📦</span>Replacement
+            </button>
+            <button class="act-btn danger-action" id="act-escalate" onclick="takeAction('escalate')">
+              <span class="icon">⬆️</span>Escalate
+            </button>
+            <button class="act-btn primary-action" id="act-close" onclick="takeAction('close_ticket')">
+              <span class="icon">✅</span> Resolve & Next Ticket
+            </button>
+          </div>
+        </div>
+
+        <!-- Reward feedback -->
+        <div class="reward-box" id="rewardBox">
+          <div class="reward-val" id="rewardVal">+0.00</div>
+          <div class="reward-reason" id="rewardReason">—</div>
+        </div>
+
+        <!-- Final score -->
+        <div id="finalScore">
+          <div class="score-label">Final Session Grade</div>
+          <div class="score-value" id="scoreValue">0.00</div>
+          <div class="score-sub">Consolidated across all tickets in session</div>
+          <div class="score-tier" id="scoreTier"></div>
+          <button class="restart-btn" onclick="location.reload()">↩ New Session</button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let sessionId = null;
+    let stepCount  = 0;
+
+    function openModal() { document.getElementById('ticketModal').style.display = 'flex'; }
+    function closeModal() { document.getElementById('ticketModal').style.display = 'none'; }
+
+    async function submitTicket() {
+      if (!sessionId) { alert('Start a session first!'); return; }
+      
+      const payload = {
+        session_id: sessionId,
+        subject: document.getElementById('newSubject').value,
+        body: document.getElementById('newBody').value,
+        customer_history: "Customer created ticket via interface.",
+        priority: document.getElementById('newPriority').value,
+        category: document.getElementById('newCategory').value
+      };
+
+      try {
+        const res = await fetch('/raise_ticket', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        alert('Ticket added to priority queue!');
+        closeModal();
+        updateQueueDisplay(data.queue_size);
+      } catch(e) {
+        alert('Failed to add ticket');
+      }
+    }
+
+    function updateQueueDisplay(size) {
+        const badge = document.getElementById('queueCounter');
+        if (size > 0) {
+            badge.style.display = 'inline-flex';
+            document.getElementById('queueSize').textContent = size;
+        } else {
+            badge.style.display = 'none';
+        }
+    }
+
+    // ── Reset ──────────────────────────────────────────
+    async function resetEnv(taskId, btn) {
+      document.querySelectorAll('.task-bar .task-btn').forEach(b => b.classList.remove('active'));
+      if (btn) btn.classList.add('active');
+
+      stepCount = 0;
+      document.getElementById('stepLog').innerHTML = '<div class="empty-log" id="emptyLog">Ready for dispatch...</div>';
+      document.getElementById('rewardBox').style.display  = 'none';
+      document.getElementById('finalScore').style.display = 'none';
+      document.getElementById('currentLabel').style.display = 'none';
+      setActionsDisabled(false);
+
+      try {
+        const res  = await fetch('/reset', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ task_id: taskId })
+        });
+        const data = await res.json();
+        sessionId  = data.session_id;
+        updateTicket(data.state);
+      } catch(e) { console.error('Reset failed:', e); }
+    }
+
+    // ── Step ───────────────────────────────────────────
+    async function takeAction(actionType) {
+      if (!sessionId) { alert('Please start a session first.'); return; }
+
+      const payload = document.getElementById('actionPayload').value.trim() || null;
+      setActionsDisabled(true);
+
+      try {
+        const res  = await fetch('/step', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ session_id: sessionId, action: { action_type: actionType, payload } })
+        });
+        const data = await res.json();
+
+        updateTicket(data.state);
+        appendStepLog(actionType, payload, data.reward);
+        showReward(data.reward);
+
+        if (data.done) {
+          showFinalScore(data.score || 0);
+        } else {
+          setActionsDisabled(false);
+        }
+
+        document.getElementById('actionPayload').value = '';
+      } catch(e) {
+        console.error('Step failed:', e);
+        setActionsDisabled(false);
+      }
+    }
+
+    // ── UI Helpers ─────────────────────────────────────
+    function updateTicket(state) {
+      if (!state) return;
+      document.getElementById('ticketId').textContent       = `ID: ${state.ticket_id}`;
+      document.getElementById('ticketText').textContent     = state.ticket_text;
+      document.getElementById('customerHistory').textContent = state.customer_history;
+
+      const badge = document.getElementById('statusBadge');
+      badge.textContent = state.status;
+      badge.className   = `status-pill status-${state.status}`;
+
+      const prio = document.getElementById('ticketPrio');
+      const p = state.priority || 'medium';
+      prio.textContent = p;
+      prio.className = `priority-pill prio-${p=='hard'?'high':(p=='easy'?'low':p)}`;
+
+      updateQueueDisplay(state.queue_remaining);
+
+      if (state.issue_category) {
+          document.getElementById('currentLabel').style.display = 'block';
+          document.getElementById('labelVal').textContent = state.issue_category;
+      }
+    }
+
+    function appendStepLog(action, payload, reward) {
+      const log = document.getElementById('stepLog');
+      const empty = document.getElementById('emptyLog');
+      if (empty) empty.remove();
+
+      stepCount++;
+      const item = document.createElement('div');
+      item.className = 'step-item';
+      item.innerHTML = `
+        <span class="step-num">#${stepCount}</span>
+        <div>
+          <span class="step-action">${action}</span>
+          ${payload ? `<span class="step-payload"> → ${payload}</span>` : ''}
+          <div style="font-size:.75rem;color:${reward.value>=0?'var(--success)':'var(--warn)'}; margin-top:3px;">
+            ${reward.value >= 0 ? '+' : ''}${reward.value.toFixed(2)} — ${reward.reason}
+          </div>
+        </div>`;
+      log.appendChild(item);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function showReward(reward) {
+      const box    = document.getElementById('rewardBox');
+      const val    = document.getElementById('rewardVal');
+      const reason = document.getElementById('rewardReason');
+
+      const cls = reward.value > 0 ? 'pos' : reward.value < 0 ? 'neg' : 'neu';
+      box.className = `reward-box ${cls}`;
+      val.className = `reward-val ${cls}`;
+      val.textContent    = (reward.value >= 0 ? '+' : '') + reward.value.toFixed(2);
+      reason.textContent = reward.reason;
+      box.style.display  = 'block';
+    }
+
+    function showFinalScore(score) {
+      const box = document.getElementById('finalScore');
+      document.getElementById('scoreValue').textContent = score.toFixed(2);
+      const tier = score >= 0.85 ? '🏆 Grand Slam' : score >= 0.65 ? '🥈 Expert' : '🥉 Contributor';
+      document.getElementById('scoreTier').textContent = tier;
+      box.style.display = 'block';
+    }
+
+    function setActionsDisabled(disabled) {
+      document.querySelectorAll('.act-btn').forEach(b => b.disabled = disabled);
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      resetEnv('easy_refund', document.getElementById('btn-easy'));
+    });
+  </script>
+</body>
+</html>
 
     body {
       font-family: 'Inter', sans-serif;

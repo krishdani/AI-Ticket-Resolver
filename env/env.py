@@ -7,17 +7,42 @@ from .tasks import TASKS
 class CustomerSupportEnv(Environment):
     def __init__(self, task_id: str = "easy_refund"):
         self.task_id = task_id
-        self.task_data = TASKS.get(task_id, TASKS["easy_refund"])
+        # Support for multiple tickets in one session
+        self.queue = []
+        base_task = TASKS.get(task_id, TASKS["easy_refund"])
+        
+        # Initialize queue with the selected task
+        self.queue.append({
+            "id": str(uuid.uuid4())[:8],
+            "text": base_task["ticket_text"],
+            "history": base_task["customer_history"],
+            "priority": base_task.get("difficulty", "medium"), # Map difficulty to priority for now
+            "category": base_task["expected_category"]
+        })
+        
         self.reset()
 
     def reset(self) -> TicketState:
+        if not self.queue:
+            # Fallback if queue somehow empty
+            self.queue = [{"id": "err", "text": "No tickets", "history": "", "priority": "low", "category": "none"}]
+
+        # Sort queue: high > medium > low
+        prio_map = {"hard": 3, "medium": 2, "easy": 1, "high": 3, "low": 1}
+        self.queue.sort(key=lambda x: prio_map.get(x["priority"], 2), reverse=True)
+        
+        current = self.queue[0]
+        self.current_ticket = current
+        
         self.state = TicketState(
-            ticket_id=str(uuid.uuid4())[:8],
-            ticket_text=self.task_data["ticket_text"],
-            customer_history=self.task_data["customer_history"],
+            ticket_id=current["id"],
+            ticket_text=current["text"],
+            customer_history=current["history"],
             current_step=0,
             status="open",
-            history=[]
+            history=[],
+            priority=current["priority"],
+            queue_remaining=len(self.queue) - 1
         )
         return self.state
 
@@ -31,13 +56,12 @@ class CustomerSupportEnv(Environment):
         done = False
 
         action_type = action.action_type
-        # Record history for grading
         self.state.history.append({"step": self.state.current_step, "action": action_type, "payload": action.payload})
 
         # Logic for classifications
         if action_type == "classify_issue":
             if self.state.status == "open":
-                expected = self.task_data["expected_category"].lower()
+                expected = self.current_ticket["category"].lower()
                 provided = (action.payload or "").lower()
                 if provided == expected or (expected in provided and len(provided) > 2):
                     reward_val = 0.3
@@ -51,9 +75,9 @@ class CustomerSupportEnv(Environment):
                 reward_val = -0.1
                 reason = "Already classified"
 
-        # Logic for actions
+        # Logic for resolutions
         elif action_type == "offer_refund":
-            if self.task_id == "easy_refund":
+            if self.current_ticket["category"] == "refund":
                 reward_val = 0.5
                 reason = "Correct resolution: Refund offered"
                 self.state.status = "resolved"
@@ -62,7 +86,7 @@ class CustomerSupportEnv(Environment):
                 reason = "Refund was not the correct action"
         
         elif action_type == "offer_replacement":
-            if self.task_id == "medium_replacement":
+            if self.current_ticket["category"] == "replacement":
                 reward_val = 0.5
                 reason = "Correct resolution: Replacement offered"
                 self.state.status = "resolved"
@@ -71,7 +95,7 @@ class CustomerSupportEnv(Environment):
                 reason = "Replacement was not the correct action"
 
         elif action_type == "request_more_info":
-            if self.task_id == "hard_delay_case":
+            if self.current_ticket["category"] == "shipping_delay":
                 reward_val = 0.4
                 reason = "Correct step: Requesting info for delay"
             else:
@@ -79,11 +103,18 @@ class CustomerSupportEnv(Environment):
                 reason = "Unnecessary info request"
 
         elif action_type == "close_ticket":
-            if self.state.status in ["resolved", "classified"] or self.task_id == "hard_delay_case":
+            if self.state.status in ["resolved", "classified"] or self.current_ticket["category"] == "shipping_delay":
                 reward_val = 0.2
                 reason = "Ticket closed correctly"
                 self.state.status = "closed"
-                done = True
+                
+                # Check if there are more tickets in queue
+                self.queue.pop(0)
+                if self.queue:
+                    reason += ". Loading next ticket from queue..."
+                    self.reset()
+                else:
+                    done = True
             else:
                 reward_val = -0.5
                 reason = "Closed ticket without resolution"
@@ -93,14 +124,25 @@ class CustomerSupportEnv(Environment):
             reward_val = -0.1 
             reason = "Escalated to human supervisor"
             self.state.status = "escalated"
-            done = True
+            
+            # Logic: Load next ticket even if escalated?
+            self.queue.pop(0)
+            if self.queue:
+                self.reset()
+            else:
+                done = True
 
-        # Penalty for too many steps
+        # Penalty for too many steps on one ticket
         if self.state.current_step > 5:
             reward_val -= 0.1
-            reason += " (Step penalty)"
+            reason += " (Efficiency penalty)"
             if self.state.current_step >= 8:
-                done = True
+                # Force next ticket or end
+                self.queue.pop(0)
+                if self.queue:
+                    self.reset()
+                else:
+                    done = True
 
         info = {"reason": reason, "task_id": self.task_id}
         return self.state, reward_val, done, info
