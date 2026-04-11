@@ -7,18 +7,18 @@ from .tasks import TASKS
 class CustomerSupportEnv(Environment):
     def __init__(self, task_id: str = "easy_refund"):
         self.task_id = task_id
-        # Support for multiple tickets in one session
+        # Load all 5 tickets for this difficulty level
+        batch = TASKS.get(task_id, TASKS["easy_refund"])
         self.queue = []
-        base_task = TASKS.get(task_id, TASKS["easy_refund"])
         
-        # Initialize queue with the selected task
-        self.queue.append({
-            "id": str(uuid.uuid4())[:8],
-            "text": base_task["ticket_text"],
-            "history": base_task["customer_history"],
-            "priority": base_task.get("difficulty", "medium"), # Map difficulty to priority for now
-            "category": base_task["expected_category"]
-        })
+        for t in batch:
+            self.queue.append({
+                "id": str(uuid.uuid4())[:8],
+                "text": t["ticket_text"],
+                "history": t["customer_history"],
+                "priority": t.get("priority", "medium"),
+                "category": t["category"]
+            })
         
         self.reset()
 
