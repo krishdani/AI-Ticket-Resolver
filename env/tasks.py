@@ -1,31 +1,28 @@
-from typing import Dict, Any
+from .models import TicketState
 
-TASKS: Dict[str, Dict[str, Any]] = {
-    "easy_spam_filter": {
-        "name": "Easy — Spam Detection",
-        "ticket_text": "URGENT: Win a free $500 gift card! Click here now!",
-        "customer_history": "No previous purchases. Unknown sender.",
+TASKS = {
+    "easy_spam_case": {
+        "ticket_text": "Spam: Buy cheap followers now! Check this link for deals.",
+        "customer_history": "Unknown user. No previous interactions.",
         "expected_category": "spam",
-        "expected_sequence": ["classify_issue"],
+        "expected_sequence": ["close_ticket"],
         "difficulty": "easy",
-        "description": "Identify the ticket as spam. This is a single-step task."
+        "description": "Simply close the spam ticket."
     },
     "medium_refund": {
-        "name": "Medium — Standard Refund",
-        "ticket_text": "I received my order #9988 but it's the wrong color. I'd like a refund please.",
-        "customer_history": "Loyal customer since 2023. 3 previous orders.",
+        "ticket_text": "The item I bought is broken. I want a refund.",
+        "customer_history": "Regular customer. Order #77889.",
         "expected_category": "refund",
-        "expected_sequence": ["classify_issue", "offer_refund"],
+        "expected_sequence": ["classify_issue", "offer_refund", "close_ticket"],
         "difficulty": "medium",
-        "description": "Classify as a refund request and process the refund. Two steps required."
+        "description": "Classify as refund and then offer the refund."
     },
-    "hard_damaged_replacement": {
-        "name": "Hard — Complex Replacement",
-        "ticket_text": "The tablet I ordered for my kid's birthday arrived with a shattered screen. I need a replacement sent today, not a refund. Can you confirm if you have it in stock?",
-        "customer_history": "VIP member. 15+ orders. High value account.",
+    "hard_complex_replacement": {
+        "ticket_text": "I received a different model than what I ordered. I need the correct one for a wedding on Saturday. Can you fix this?",
+        "customer_history": "Prime member. 12 orders this year.",
         "expected_category": "replacement",
         "expected_sequence": ["classify_issue", "request_more_info", "offer_replacement", "close_ticket"],
         "difficulty": "hard",
-        "description": "Handle a VIP replacement. Must classify, verify details, resolve, and close manually. 4 steps required."
+        "description": "Must classify, ask for the correct model details (request_more_info), then offer replacement."
     }
 }

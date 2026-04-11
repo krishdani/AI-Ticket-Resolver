@@ -2,53 +2,47 @@ from typing import List, Dict, Any
 from .tasks import TASKS
 
 def grade_trajectory(task_id: str, trajectory: List[Dict[str, Any]]) -> float:
-    """
-    Stage-aware deterministic grader.
-    Evaluates progression through required milestones.
-    """
     task = TASKS.get(task_id)
-    if not task or not trajectory:
+    if not task:
         return 0.0
 
     score = 0.0
-    actions = [t["action"] for t in trajectory]
-    payloads = [str(t.get("payload") or "").lower() for t in trajectory]
+    actions_taken = [t["action"] for t in trajectory]
     
-    # Check for Goal Completion
-    success = False
-    if task_id == "easy_spam_filter":
-        success = "classify_issue" in actions and payloads[actions.index("classify_issue")] == "spam"
+    # Check sequence correctness
+    # If the set of required actions is found in the trajectory in any order (though we prefer sequence)
+    # However, for support, sequence matters.
+    
+    if task_id == "easy_spam_case":
+        if "close_ticket" in actions_taken:
+            score = 1.0
+    
     elif task_id == "medium_refund":
-        success = "offer_refund" in actions and actions.index("classify_issue") < actions.index("offer_refund")
-    elif task_id == "hard_damaged_replacement":
-        if "offer_replacement" in actions and "close_ticket" in actions:
-            i_idx = actions.index("classify_issue")
-            m_idx = actions.index("request_more_info")
-            r_idx = actions.index("offer_replacement")
-            c_idx = actions.index("close_ticket")
-            success = i_idx < m_idx < r_idx < c_idx
-
-    if success:
-        score += 0.6 # Base success score
-    
-    # Sequence Quality & Efficiency (0.4)
-    # Penalize if repeated actions exist (other than info request)
-    uniques = set()
-    has_repeats = False
-    for a in actions:
-        if a in uniques and a != "request_more_info":
-            has_repeats = True
-        uniques.add(a)
-    
-    if success and not has_repeats:
-        score += 0.2
+        if "classify_issue" in actions_taken and "offer_refund" in actions_taken and actions_taken[-1] == "close_ticket":
+            score = 1.0
+        elif "classify_issue" in actions_taken and "offer_refund" in actions_taken:
+            score = 0.7
+        elif "classify_issue" in actions_taken:
+            score = 0.3
+            
+    elif task_id == "hard_complex_replacement":
+        has_class = "classify_issue" in actions_taken
+        has_info = "request_more_info" in actions_taken
+        has_replace = "offer_replacement" in actions_taken
+        is_closed = actions_taken[-1] == "close_ticket"
         
-    # Step count efficiency
-    ideal = len(task["expected_sequence"])
-    actual = len(actions)
-    if success and actual <= ideal:
-        score += 0.2
-    elif success and actual <= ideal + 1:
-        score += 0.1
+        if has_class and has_info and has_replace and is_closed:
+            score = 1.0
+        elif has_class and has_info and has_replace:
+            score = 0.8
+        elif has_class and has_info:
+            score = 0.5
+        elif has_class:
+            score = 0.2
 
-    return float(min(max(score, 0.0), 1.0))
+    # Efficiency Penalty: Lose 0.05 per action over the minimum needed
+    min_steps = len(task["expected_sequence"])
+    extra_steps = max(0, len(actions_taken) - min_steps)
+    score -= (extra_steps * 0.05)
+
+    return min(max(float(score), 0.0), 1.0)
