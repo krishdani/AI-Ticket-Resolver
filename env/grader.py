@@ -3,58 +3,61 @@ from .tasks import TASKS
 
 def grade_trajectory(task_id: str, trajectory: List[Dict[str, Any]]) -> float:
     """
-    Programmatic deterministic grader for AI Ticket Resolver.
-    Returns a score between 0.0 and 1.0.
+    Refined deterministic grader for AI Ticket Resolver.
+    Evaluates:
+    - Task Success (0.5)
+    - Correct Sequence/Logic (0.3)
+    - Efficiency (0.2)
     """
     task = TASKS.get(task_id)
-    if not task:
+    if not task or not trajectory:
         return 0.0
 
     score = 0.0
-    actions_taken = [t["action"] for t in trajectory]
+    actions = [t["action"] for t in trajectory]
     payloads = [str(t.get("payload") or "").lower() for t in trajectory]
     
-    # 1. Classification check (0.3 points)
-    correct_class = False
-    for i, action in enumerate(actions_taken):
-        if action == "classify_issue":
-            expected = task["expected_category"].lower()
-            if payloads[i] == expected or expected in payloads[i]:
-                correct_class = True
-                score += 0.3
-                break
-
-    # 2. Sequence quality and Goal Completion (0.5 points)
-    if task_id == "easy_spam":
-        if "close_ticket" in actions_taken:
-            score += 0.5 # Simple goal
+    # 1. Goal Success (0.5)
+    success = False
+    if task_id == "easy_spam_filter":
+        if "classify_issue" in actions:
+            idx = actions.index("classify_issue")
+            if payloads[idx] == "spam": success = True
     elif task_id == "medium_refund":
-        if correct_class and "offer_refund" in actions_taken:
-            score += 0.5
+        if "offer_refund" in actions and "classify_issue" in actions:
+            success = True
     elif task_id == "hard_damaged_replacement":
-        # Must Classify -> Info -> Replacement
-        if correct_class:
-            has_info = "request_more_info" in actions_taken
-            has_replace = "offer_replacement" in actions_taken
-            if has_info and has_replace:
-                # Check order: info must come before replacement
-                info_idx = actions_taken.index("request_more_info")
-                replace_idx = actions_taken.index("offer_replacement")
-                if info_idx < replace_idx:
-                    score += 0.5
-                else:
-                    score += 0.25 # Wrong order penalty
+        if "offer_replacement" in actions and "close_ticket" in actions:
+            success = True
 
-    # 3. Proper Termination (0.1 points)
-    if actions_taken and actions_taken[-1] == "close_ticket":
-        score += 0.1
+    if success: score += 0.5
 
-    # 4. Efficiency Bonus (0.1 points)
-    # Max bonus if steps equal to expected sequence
-    expected_len = len(task["expected_sequence"])
-    if len(actions_taken) <= expected_len:
+    # 2. Sequence/Logic (0.3)
+    # Check if classify came before anything else
+    if "classify_issue" in actions:
+        if actions[0] == "classify_issue":
+            score += 0.1
+            # Check payload correctness
+            if payloads[0] == task["expected_category"].lower():
+                score += 0.1
+    
+    # Hard mode sequence check: classify -> info -> resolution
+    if task_id == "hard_damaged_replacement" and success:
+        if "request_more_info" in actions:
+            idx_info = actions.index("request_more_info")
+            idx_res = actions.index("offer_replacement")
+            if idx_info < idx_res:
+                score += 0.1 # Correct sequence
+
+    # 3. Efficiency (0.2)
+    ideal_steps = len(task["expected_sequence"])
+    actual_steps = len(actions)
+    
+    if actual_steps == ideal_steps:
+        score += 0.2
+    elif actual_steps <= ideal_steps + 1:
         score += 0.1
-    elif len(actions_taken) <= expected_len + 2:
+    elif actual_steps <= ideal_steps + 2:
         score += 0.05
 
     return float(min(max(score, 0.0), 1.0))

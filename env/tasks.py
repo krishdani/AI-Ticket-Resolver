@@ -1,31 +1,31 @@
 from typing import Dict, Any
 
 TASKS: Dict[str, Dict[str, Any]] = {
-    "easy_spam": {
-        "name": "Easy — Spam Filtering",
-        "ticket_text": "Buy crypto now! Limited time offer at www.scam-site.com",
-        "customer_history": "Unknown sender. Marked as potential spam by system.",
+    "easy_spam_filter": {
+        "name": "Easy — Spam Detection",
+        "ticket_text": "URGENT: Win a free $500 gift card! Click here now!",
+        "customer_history": "No previous purchases. Unknown sender.",
         "expected_category": "spam",
-        "expected_sequence": ["close_ticket"],
+        "expected_sequence": ["classify_issue"],
         "difficulty": "easy",
-        "description": "Identify spam and close the ticket immediately without wasting company time."
+        "description": "Identify the ticket as spam. This is a single-step task."
     },
     "medium_refund": {
-        "name": "Medium — Refund Request",
-        "ticket_text": "My Order #4455 was delivered but the box was empty. I need my money back.",
-        "customer_history": "Regular customer. One previous order 6 months ago.",
+        "name": "Medium — Standard Refund",
+        "ticket_text": "I received my order #9988 but it's the wrong color. I'd like a refund please.",
+        "customer_history": "Loyal customer since 2023. 3 previous orders.",
         "expected_category": "refund",
-        "expected_sequence": ["classify_issue", "offer_refund", "close_ticket"],
+        "expected_sequence": ["classify_issue", "offer_refund"],
         "difficulty": "medium",
-        "description": "Classify the refund request, offer the refund, and then close the ticket."
+        "description": "Classify as a refund request and process the refund. Two steps required."
     },
     "hard_damaged_replacement": {
         "name": "Hard — Complex Replacement",
-        "ticket_text": "The laptop I bought from your store has a dead pixel. I need it for a presentation on Tuesday. Can you send a new one fast? I don't want a refund, I want the unit.",
-        "customer_history": "VIP Customer. High spend. Has bought 10+ items.",
+        "ticket_text": "The tablet I ordered for my kid's birthday arrived with a shattered screen. I need a replacement sent today, not a refund. Can you confirm if you have it in stock?",
+        "customer_history": "VIP member. 15+ orders. High value account.",
         "expected_category": "replacement",
         "expected_sequence": ["classify_issue", "request_more_info", "offer_replacement", "close_ticket"],
         "difficulty": "hard",
-        "description": "A VIP customer needs urgent help. Must classify, ask for proof/details, offer replacement, and close."
+        "description": "Handle a VIP replacement. Must classify, verify details, resolve, and close manually. 4 steps required."
     }
 }
