@@ -2,29 +2,29 @@ spec_version: 1
 type: space
 runtime: fastapi
 name: ai_customer_support_resolver
-version: 1.1.0
+version: 1.2.0
 description: >
   Professional RL environment for customer support ticket resolution.
-  Features 3 tasks with increasing difficulty (1-4 steps) and multi-signal rewards.
+  Features a sequential "Stage-Based" workflow and high-fidelity Gradio UI.
 
 tasks:
-  - id: easy_spam
-    name: Easy — Spam Filtering
+  - id: easy_spam_filter
+    name: Easy — Spam Detection
     difficulty: easy
     grader: env.grader.grade_trajectory
-    description: Handle incoming spam messages efficiently.
+    description: Identify the ticket as spam in a single step.
 
   - id: medium_refund
-    name: Medium — Refund Request
+    name: Medium — Standard Refund
     difficulty: medium
     grader: env.grader.grade_trajectory
-    description: Process a standard refund for an empty package.
+    description: Classify as refund and process. Two-step reasoning.
 
   - id: hard_damaged_replacement
     name: Hard — Complex Replacement
     difficulty: hard
     grader: env.grader.grade_trajectory
-    description: High-value replacement for a VIP customer with damaged tech.
+    description: VIP replacement requiring classification, info verification, and resolution. Four-step reasoning.
 
 action_schema:
   type: object
@@ -53,7 +53,7 @@ observation_schema:
     current_step:    { type: integer }
     status:
       type: string
-      enum: [open, classified, resolved, closed, escalated]
+      enum: [OPEN, CLASSIFIED, VALIDATED, RESOLVED, CLOSED, ESCALATED]
     issue_category:  { type: string, nullable: true }
     history:         { type: array }
 

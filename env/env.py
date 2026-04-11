@@ -6,8 +6,8 @@ from .tasks import TASKS
 
 class CustomerSupportEnv(Environment):
     """
-    Standard OpenEnv environment for Customer Support Ticket Resolution.
-    Implements shaped rewards and multi-step reasoning tasks.
+    High-fidelity state-based Customer Support environment.
+    Enforces strict action sequencing (Stage 0 -> Stage 1 -> Stage 2).
     """
     def __init__(self, task_id: str = "medium_refund"):
         self.task_id = task_id if task_id in TASKS else "medium_refund"
@@ -19,6 +19,7 @@ class CustomerSupportEnv(Environment):
             self.task_id = task_id
             self.task_data = TASKS[self.task_id]
             
+        self.current_stage = 0
         self.state_data = TicketState(
             ticket_id=str(uuid.uuid4())[:8],
             ticket_text=self.task_data["ticket_text"],
@@ -32,6 +33,26 @@ class CustomerSupportEnv(Environment):
     def state(self) -> TicketState:
         return self.state_data
 
+    def _get_required_action(self, stage: int) -> str:
+        """Helper to get the expected action type for a given stage/task."""
+        if stage == 0:
+            return "classify_issue"
+        
+        if self.task_id == "easy_spam_filter":
+            return "DONE" # Should have finished after stage 0
+        
+        if self.task_id == "medium_refund":
+            if stage == 1: return "offer_refund"
+            return "DONE"
+            
+        if self.task_id == "hard_damaged_replacement":
+            if stage == 1: return "request_more_info"
+            if stage == 2: return "offer_replacement"
+            if stage == 3: return "close_ticket"
+            return "DONE"
+        
+        return "DONE"
+
     def step(self, action: Action) -> Tuple[TicketState, float, bool, Dict[str, Any]]:
         self.state_data.current_step += 1
         reward_val = 0.0
@@ -41,91 +62,81 @@ class CustomerSupportEnv(Environment):
         action_type = action.action_type
         payload = (action.payload or "").lower()
         
-        # Check for repetition
+        # 1. State/History Updates
         previous_actions = [h["action"] for h in self.state_data.history]
         is_repeat = action_type in previous_actions and action_type not in ["request_more_info"]
-        
-        # Record history
-        self.state_data.history.append({"step": self.state_data.current_step, "action": action_type, "payload": action.payload})
+        self.state_data.history.append({
+            "step": self.state_data.current_step, 
+            "action": action_type, 
+            "payload": action.payload,
+            "stage": self.current_stage
+        })
 
-        # --- CORE LOGIC & REWARDS ---
+        # 2. Get Expected Action
+        expected_type = self._get_required_action(self.current_stage)
         
-        if action_type == "classify_issue":
-            if self.state_data.status == "open":
-                expected = self.task_data["expected_category"].lower()
-                if payload == expected or (expected in payload and len(payload) > 2):
+        # 3. Sequence Validation Logic
+        if action_type == expected_type:
+            # Correct Action Type
+            if action_type == "classify_issue":
+                expected_cat = self.task_data["expected_category"].lower()
+                if payload == expected_cat or (expected_cat in payload and len(payload) > 2):
                     reward_val = 0.3
-                    feedback = "Correct classification"
+                    feedback = f"Step {self.current_stage + 1} correct: classification successful"
+                    self.current_stage += 1
                     self.state_data.status = "classified"
-                    self.state_data.issue_category = payload
-                    # For Easy, classification is the end
+                    # EASY task ends here
                     if self.task_id == "easy_spam_filter":
-                        reward_val += 0.4 # Bonus for immediate completion
-                        feedback = "Correct classification. Task completed successfully"
+                        reward_val += 0.4
+                        feedback += ". Task completed successfully"
                         done = True
                 else:
                     reward_val = -0.2
-                    feedback = f"Wrong classification: {payload}"
-            else:
-                reward_val = -0.1
-                feedback = "Already classified"
-
-        elif action_type == "request_more_info":
-            if self.task_id == "hard_damaged_replacement" and self.state_data.status == "classified":
+                    feedback = f"Wrong classification provided: {payload}"
+            
+            elif action_type == "request_more_info":
                 reward_val = 0.3
-                feedback = "Correct intermediate step"
+                feedback = f"Step {self.current_stage + 1} correct: details requested"
+                self.current_stage += 1
                 self.state_data.status = "validated"
-            else:
-                reward_val = -0.2
-                feedback = "Invalid or repeated action"
-
-        elif action_type == "offer_refund":
-            if self.task_id == "medium_refund" and self.state_data.status == "classified":
+                
+            elif action_type in ["offer_refund", "offer_replacement"]:
                 reward_val = 0.4
-                feedback = "Task completed successfully"
-                self.state_data.status = "closed"
-                done = True
-            else:
-                reward_val = -0.2
-                feedback = "Wrong action, expected refund for this task"
-        
-        elif action_type == "offer_replacement":
-            if self.task_id == "hard_damaged_replacement" and self.state_data.status == "validated":
-                reward_val = 0.4
-                feedback = "Correct resolution: Replacement offered"
+                feedback = f"Step {self.current_stage + 1} correct: resolution offered"
+                self.current_stage += 1
                 self.state_data.status = "resolved"
-            else:
-                reward_val = -0.2
-                feedback = "Wrong action, expected replacement"
-
-        elif action_type == "close_ticket":
-            if self.task_id == "hard_damaged_replacement" and self.state_data.status == "resolved":
-                reward_val = 0.1 # Small bonus for manual close
+                # MEDIUM task ends here
+                if self.task_id == "medium_refund":
+                    feedback = "Task completed successfully"
+                    done = True
+                    
+            elif action_type == "close_ticket":
+                reward_val = 0.4
                 feedback = "Task completed successfully"
                 self.state_data.status = "closed"
                 done = True
+        
+        else:
+            # Wrong Action Type
+            if is_repeat:
+                reward_val = -0.1
+                feedback = "Repeated action detected"
             else:
                 reward_val = -0.2
-                feedback = "Closed ticket without resolution"
-                done = True
+                if expected_type == "DONE":
+                    feedback = "Task already completed, please close ticket"
+                    done = True
+                else:
+                    feedback = f"Step {self.current_stage + 1} required: {expected_type} before resolution"
 
-        else:
-            reward_val = -0.2
-            feedback = "Unrecognized or invalid action"
-
-        # Repetition penalty
-        if is_repeat:
-            reward_val -= 0.1
-            feedback = "Invalid or repeated action"
-
-        # Max steps boundary
+        # 4. Final Constraints
         if self.state_data.current_step >= 8:
             done = True
-            if not feedback: feedback = "Max steps reached"
 
-        info = {"feedback": feedback, "task_id": self.task_id}
-        # Clamp reward to [0, 1] for positive signals, but allow negative for learning?
-        # The prompt says "reward ∈ [0.0, 1.0]", so I will clamp but only after summing.
-        # Actually in RL, negative rewards are important. But I will clamp for the "Return" sense.
+        info = {
+            "feedback": feedback, 
+            "current_stage": self.current_stage,
+            "expected_next": self._get_required_action(self.current_stage)
+        }
         
         return self.state_data, float(reward_val), done, info
