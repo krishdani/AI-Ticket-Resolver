@@ -4,453 +4,28 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>AI Support Resolver | OpenEnv RL Environment</title>
-  <meta name="description" content="Reinforcement Learning environment for AI-powered customer support ticket resolution. Interactive hackathon workspace." />
+  <meta name="description" content="Reinforcement Learning environment for AI-powered customer support ticket resolution." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
   <style>
-    /* ── Design Tokens ─────────────────────────────────── */
     :root {
-      --bg:          #0a0b10;
-      --surface:     #12141c;
-      --surface2:    #1a1d28;
-      --border:      #252836;
-      --primary:     #6c63ff;
+      --bg: #0a0b10;
+      --surface: #12141c;
+      --surface2: #1a1d28;
+      --border: #252836;
+      --primary: #6c63ff;
       --primary-dim: #4e47cc;
-      --accent:      #00d4aa;
-      --warn:        #ff6b6b;
-      --gold:        #ffd166;
-      --text:        #e8eaf0;
-      --text-muted:  #6b7280;
-      --success:     #10b981;
-      --radius:      14px;
-      --glow:        0 0 24px rgba(108,99,255,.25);
+      --accent: #00d4aa;
+      --warn: #ff6b6b;
+      --gold: #ffd166;
+      --text: #e8eaf0;
+      --text-muted: #6b7280;
+      --success: #10b981;
+      --radius: 14px;
+      --glow: 0 0 24px rgba(108,99,255,.25);
     }
 
-    /* ── Queue Badge ───────────────────────────────────── */
-    .queue-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-size: .75rem;
-      font-weight: 700;
-      color: var(--accent);
-      background: rgba(0,212,170,.1);
-      padding: 4px 12px;
-      border-radius: 20px;
-      border: 1px solid rgba(0,212,170,.2);
-    }
-
-    /* ── Modal ─────────────────────────────────────────── */
-    .modal-overlay {
-      display: none;
-      position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0,0,0,0.8);
-      backdrop-filter: blur(8px);
-      z-index: 1000;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .modal-content {
-      background: var(--surface);
-      width: 90%;
-      max-width: 500px;
-      border-radius: var(--radius);
-      border: 1px solid var(--border);
-      padding: 32px;
-      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
-    }
-
-    .modal-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 24px;
-    }
-
-    .modal-form {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-
-    .form-group {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-
-    .form-group label { font-size: .8rem; color: var(--text-muted); font-weight: 600; }
-
-    .form-input, .form-select {
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      padding: 10px;
-      border-radius: 8px;
-      color: var(--text);
-      outline: none;
-    }
-
-    .form-input:focus, .form-select:focus { border-color: var(--primary); }
-
-    .btn-submit {
-      background: var(--primary);
-      color: white;
-      border: none;
-      padding: 12px;
-      border-radius: 8px;
-      font-weight: 700;
-      cursor: pointer;
-      margin-top: 10px;
-    }
-
-    .btn-close-modal {
-      background: transparent;
-      border: none;
-      color: var(--text-muted);
-      font-size: 1.5rem;
-      cursor: pointer;
-    }
-    
-    .priority-pill {
-      font-size: .65rem;
-      font-weight: 800;
-      padding: 2px 8px;
-      border-radius: 4px;
-      text-transform: uppercase;
-    }
-    .prio-high   { border: 1px solid #ff6b6b; color: #ff6b6b; }
-    .prio-medium { border: 1px solid #ffd166; color: #ffd166; }
-    .prio-low    { border: 1px solid #6c63ff; color: #6c63ff; }
-  </style>
-</head>
-<body>
-
-  <!-- ── Header ─────────────────────────────────────── -->
-  <header>
-    <div class="logo">
-      <div class="logo-icon">🎫</div>
-      <div>
-        <h1>AI Support Resolver</h1>
-        <div style="font-size:.7rem;color:var(--text-muted);margin-top:1px;">OpenEnv Multi-Ticket Session</div>
-      </div>
-    </div>
-    <div style="display:flex; align-items:center; gap:16px;">
-      <div id="queueCounter" class="queue-badge" style="display:none;">
-        <span>📦</span> <span id="queueSize">1</span> Ticket in Queue
-      </div>
-      <button class="task-btn" style="background:var(--primary); color:white; border:none;" onclick="openModal()">➕ Raise Ticket</button>
-      <span class="header-badge">HACKATHON READY</span>
-    </div>
-  </header>
-
-  <!-- ── Modal ─────────────────────────────────────── -->
-  <div class="modal-overlay" id="ticketModal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h2 style="font-size:1.4rem;">Raise New Ticket</h2>
-        <button class="btn-close-modal" onclick="closeModal()">×</button>
-      </div>
-      <div class="modal-form">
-        <div class="form-group">
-          <label>Subject</label>
-          <input type="text" id="newSubject" class="form-input" placeholder="e.g. Broken Item" />
-        </div>
-        <div class="form-group">
-          <label>Description</label>
-          <textarea id="newBody" class="form-input" style="min-height:80px;" placeholder="Describe the issue..."></textarea>
-        </div>
-        <div class="form-group">
-            <label>Priority</label>
-            <select id="newPriority" class="form-select">
-              <option value="low">Low</option>
-              <option value="medium" selected>Medium</option>
-              <option value="high">High</option>
-            </select>
-          </div>
-        <div class="form-group">
-          <label>Category</label>
-          <select id="newCategory" class="form-select">
-            <option value="refund">Refund</option>
-            <option value="replacement">Replacement</option>
-            <option value="shipping_delay">Shipping Delay</option>
-          </select>
-        </div>
-        <button class="btn-submit" onclick="submitTicket()">Add to Queue</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ── Task Selector ──────────────────────────────── -->
-  <div class="task-bar">
-    <label>Start Session:</label>
-    <button id="btn-easy"   class="task-btn easy   active" onclick="resetEnv('easy_refund',this)">🟢 Start with Easy Task</button>
-    <button id="btn-medium" class="task-btn medium"        onclick="resetEnv('medium_replacement',this)">🟡 Start with Medium Task</button>
-    <button id="btn-hard"   class="task-btn hard"          onclick="resetEnv('hard_delay_case',this)">🔴 Start with Hard Task</button>
-  </div>
-
-  <!-- ── Main ──────────────────────────────────────── -->
-  <div class="main">
-
-    <!-- Left: Ticket + Log -->
-    <div class="ticket-panel">
-      <div class="section-label" style="display:flex; justify-content:space-between;">
-          <span>Active Ticket</span>
-          <span id="ticketPrio" class="priority-pill prio-medium">Normal</span>
-      </div>
-
-      <div class="ticket-card" id="ticketCard">
-        <div class="ticket-meta">
-          <span class="ticket-id" id="ticketId">ID: --------</span>
-          <span class="status-pill status-open" id="statusBadge">open</span>
-        </div>
-        <div class="ticket-body" id="ticketText">Select a difficulty level to start session…</div>
-        <div class="history-strip">
-          👤 <span id="customerHistory">—</span>
-        </div>
-      </div>
-
-      <div class="section-label" style="margin-top:24px;">Processing Logs</div>
-      <div class="step-log" id="stepLog">
-        <div class="empty-log" id="emptyLog">Ready for dispatch...</div>
-      </div>
-    </div>
-
-    <!-- Right: Controls -->
-    <div class="control-panel">
-      <div class="controls-inner">
-
-        <!-- Payload -->
-        <div>
-          <div class="section-label">Classification Label</div>
-          <input id="actionPayload" class="payload-input" type="text"
-                 placeholder="e.g. refund, replacement, shipping_delay" />
-          <div id="currentLabel" style="font-size: .75rem; color: var(--accent); margin-top: 8px; display: none; font-weight: 600;">
-            Current Identity: <span id="labelVal">—</span>
-          </div>
-        </div>
-
-        <!-- Actions -->
-        <div>
-          <div class="section-label">Available Actions</div>
-          <div class="action-grid">
-            <button class="act-btn" id="act-classify"     onclick="takeAction('classify_issue')">
-              <span class="icon">🏷️</span>Classify Issue
-            </button>
-            <button class="act-btn" id="act-info"         onclick="takeAction('request_more_info')">
-              <span class="icon">❓</span>Request Info
-            </button>
-            <button class="act-btn" id="act-refund"       onclick="takeAction('offer_refund')">
-              <span class="icon">💰</span>Offer Refund
-            </button>
-            <button class="act-btn" id="act-replacement"  onclick="takeAction('offer_replacement')">
-              <span class="icon">📦</span>Replacement
-            </button>
-            <button class="act-btn danger-action" id="act-escalate" onclick="takeAction('escalate')">
-              <span class="icon">⬆️</span>Escalate
-            </button>
-            <button class="act-btn primary-action" id="act-close" onclick="takeAction('close_ticket')">
-              <span class="icon">✅</span> Resolve & Next Ticket
-            </button>
-          </div>
-        </div>
-
-        <!-- Reward feedback -->
-        <div class="reward-box" id="rewardBox">
-          <div class="reward-val" id="rewardVal">+0.00</div>
-          <div class="reward-reason" id="rewardReason">—</div>
-        </div>
-
-        <!-- Final score -->
-        <div id="finalScore">
-          <div class="score-label">Final Session Grade</div>
-          <div class="score-value" id="scoreValue">0.00</div>
-          <div class="score-sub">Consolidated across all tickets in session</div>
-          <div class="score-tier" id="scoreTier"></div>
-          <button class="restart-btn" onclick="location.reload()">↩ New Session</button>
-        </div>
-
-      </div>
-    </div>
-  </div>
-
-  <script>
-    let sessionId = null;
-    let stepCount  = 0;
-
-    function openModal() { document.getElementById('ticketModal').style.display = 'flex'; }
-    function closeModal() { document.getElementById('ticketModal').style.display = 'none'; }
-
-    async function submitTicket() {
-      if (!sessionId) { alert('Start a session first!'); return; }
-      
-      const payload = {
-        session_id: sessionId,
-        subject: document.getElementById('newSubject').value,
-        body: document.getElementById('newBody').value,
-        customer_history: "Customer created ticket via interface.",
-        priority: document.getElementById('newPriority').value,
-        category: document.getElementById('newCategory').value
-      };
-
-      try {
-        const res = await fetch('/raise_ticket', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify(payload)
-        });
-        const data = await res.json();
-        alert('Ticket added to priority queue!');
-        closeModal();
-        updateQueueDisplay(data.queue_size);
-      } catch(e) {
-        alert('Failed to add ticket');
-      }
-    }
-
-    function updateQueueDisplay(size) {
-        const badge = document.getElementById('queueCounter');
-        if (size > 0) {
-            badge.style.display = 'inline-flex';
-            document.getElementById('queueSize').textContent = size;
-        } else {
-            badge.style.display = 'none';
-        }
-    }
-
-    // ── Reset ──────────────────────────────────────────
-    async function resetEnv(taskId, btn) {
-      document.querySelectorAll('.task-bar .task-btn').forEach(b => b.classList.remove('active'));
-      if (btn) btn.classList.add('active');
-
-      stepCount = 0;
-      document.getElementById('stepLog').innerHTML = '<div class="empty-log" id="emptyLog">Ready for dispatch...</div>';
-      document.getElementById('rewardBox').style.display  = 'none';
-      document.getElementById('finalScore').style.display = 'none';
-      document.getElementById('currentLabel').style.display = 'none';
-      setActionsDisabled(false);
-
-      try {
-        const res  = await fetch('/reset', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ task_id: taskId })
-        });
-        const data = await res.json();
-        sessionId  = data.session_id;
-        updateTicket(data.state);
-      } catch(e) { console.error('Reset failed:', e); }
-    }
-
-    // ── Step ───────────────────────────────────────────
-    async function takeAction(actionType) {
-      if (!sessionId) { alert('Please start a session first.'); return; }
-
-      const payload = document.getElementById('actionPayload').value.trim() || null;
-      setActionsDisabled(true);
-
-      try {
-        const res  = await fetch('/step', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ session_id: sessionId, action: { action_type: actionType, payload } })
-        });
-        const data = await res.json();
-
-        updateTicket(data.state);
-        appendStepLog(actionType, payload, data.reward);
-        showReward(data.reward);
-
-        if (data.done) {
-          showFinalScore(data.score || 0);
-        } else {
-          setActionsDisabled(false);
-        }
-
-        document.getElementById('actionPayload').value = '';
-      } catch(e) {
-        console.error('Step failed:', e);
-        setActionsDisabled(false);
-      }
-    }
-
-    // ── UI Helpers ─────────────────────────────────────
-    function updateTicket(state) {
-      if (!state) return;
-      document.getElementById('ticketId').textContent       = `ID: ${state.ticket_id}`;
-      document.getElementById('ticketText').textContent     = state.ticket_text;
-      document.getElementById('customerHistory').textContent = state.customer_history;
-
-      const badge = document.getElementById('statusBadge');
-      badge.textContent = state.status;
-      badge.className   = `status-pill status-${state.status}`;
-
-      const prio = document.getElementById('ticketPrio');
-      const p = state.priority || 'medium';
-      prio.textContent = p;
-      prio.className = `priority-pill prio-${p=='hard'?'high':(p=='easy'?'low':p)}`;
-
-      updateQueueDisplay(state.queue_remaining);
-
-      if (state.issue_category) {
-          document.getElementById('currentLabel').style.display = 'block';
-          document.getElementById('labelVal').textContent = state.issue_category;
-      }
-    }
-
-    function appendStepLog(action, payload, reward) {
-      const log = document.getElementById('stepLog');
-      const empty = document.getElementById('emptyLog');
-      if (empty) empty.remove();
-
-      stepCount++;
-      const item = document.createElement('div');
-      item.className = 'step-item';
-      item.innerHTML = `
-        <span class="step-num">#${stepCount}</span>
-        <div>
-          <span class="step-action">${action}</span>
-          ${payload ? `<span class="step-payload"> → ${payload}</span>` : ''}
-          <div style="font-size:.75rem;color:${reward.value>=0?'var(--success)':'var(--warn)'}; margin-top:3px;">
-            ${reward.value >= 0 ? '+' : ''}${reward.value.toFixed(2)} — ${reward.reason}
-          </div>
-        </div>`;
-      log.appendChild(item);
-      log.scrollTop = log.scrollHeight;
-    }
-
-    function showReward(reward) {
-      const box    = document.getElementById('rewardBox');
-      const val    = document.getElementById('rewardVal');
-      const reason = document.getElementById('rewardReason');
-
-      const cls = reward.value > 0 ? 'pos' : reward.value < 0 ? 'neg' : 'neu';
-      box.className = `reward-box ${cls}`;
-      val.className = `reward-val ${cls}`;
-      val.textContent    = (reward.value >= 0 ? '+' : '') + reward.value.toFixed(2);
-      reason.textContent = reward.reason;
-      box.style.display  = 'block';
-    }
-
-    function showFinalScore(score) {
-      const box = document.getElementById('finalScore');
-      document.getElementById('scoreValue').textContent = score.toFixed(2);
-      const tier = score >= 0.85 ? '🏆 Grand Slam' : score >= 0.65 ? '🥈 Expert' : '🥉 Contributor';
-      document.getElementById('scoreTier').textContent = tier;
-      box.style.display = 'block';
-    }
-
-    function setActionsDisabled(disabled) {
-      document.querySelectorAll('.act-btn').forEach(b => b.disabled = disabled);
-    }
-
-    window.addEventListener('DOMContentLoaded', () => {
-      resetEnv('easy_refund', document.getElementById('btn-easy'));
-    });
-  </script>
-</body>
-</html>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
       font-family: 'Inter', sans-serif;
@@ -459,653 +34,323 @@
       min-height: 100vh;
       display: flex;
       flex-direction: column;
+      overflow-x: hidden;
     }
 
-    /* ── Header ─────────────────────────────────────────── */
     header {
-      background: linear-gradient(135deg, #0d0f1a 0%, #141728 100%);
+      background: rgba(13, 15, 26, 0.8);
       border-bottom: 1px solid var(--border);
-      padding: 18px 32px;
+      padding: 16px 32px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      position: sticky;
-      top: 0;
-      z-index: 100;
       backdrop-filter: blur(12px);
+      position: sticky; top: 0; z-index: 100;
     }
 
-    .logo {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
+    .logo { display: flex; align-items: center; gap: 12px; }
     .logo-icon {
-      width: 38px;
-      height: 38px;
-      border-radius: 10px;
+      width: 36px; height: 36px; border-radius: 10px;
       background: linear-gradient(135deg, var(--primary), var(--accent));
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 18px;
-      box-shadow: var(--glow);
-    }
-
-    h1 {
-      font-size: 1.15rem;
-      font-weight: 700;
-      background: linear-gradient(90deg, #fff 0%, var(--primary) 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; box-shadow: var(--glow);
     }
 
     .header-badge {
-      font-size: 0.7rem;
-      font-weight: 600;
-      padding: 4px 10px;
-      border-radius: 20px;
-      background: rgba(108,99,255,.15);
-      border: 1px solid rgba(108,99,255,.35);
-      color: var(--primary);
-      letter-spacing: .04em;
+      font-size: 0.7rem; font-weight: 600; padding: 4px 10px;
+      border-radius: 20px; background: rgba(108,99,255,.1);
+      border: 1px solid rgba(108,99,255,.3); color: var(--primary);
     }
 
-    /* ── Task Selector ───────────────────────────────────── */
+    .queue-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: .75rem; font-weight: 700; color: var(--accent);
+      background: rgba(0,212,170,.1); padding: 4px 12px;
+      border-radius: 20px; border: 1px solid rgba(0,212,170,.2);
+    }
+
     .task-bar {
-      padding: 16px 32px;
-      background: var(--surface);
+      padding: 12px 32px; background: var(--surface);
       border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      flex-wrap: wrap;
-    }
-
-    .task-bar label {
-      font-size: .78rem;
-      font-weight: 600;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: .08em;
-      margin-right: 4px;
+      display: flex; align-items: center; gap: 12px;
     }
 
     .task-btn {
-      padding: 8px 20px;
-      border-radius: 8px;
-      border: 1px solid var(--border);
-      background: var(--surface2);
-      color: var(--text-muted);
-      font-family: 'Inter', sans-serif;
-      font-size: .85rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all .2s ease;
+      padding: 8px 16px; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--surface2); color: var(--text-muted);
+      font-size: .85rem; font-weight: 600; cursor: pointer; transition: all .2s;
     }
+    .task-btn:hover { border-color: var(--primary); color: #fff; }
+    .task-btn.active { border-color: var(--primary); background: rgba(108,99,255,0.1); color: var(--primary); }
 
-    .task-btn:hover { border-color: var(--primary); color: var(--text); }
-
-    .task-btn.easy.active   { background: rgba(16,185,129,.12); border-color: var(--success); color: var(--success); }
-    .task-btn.medium.active { background: rgba(255,209,102,.12); border-color: var(--gold);    color: var(--gold);    }
-    .task-btn.hard.active   { background: rgba(255,107,107,.12); border-color: var(--warn);    color: var(--warn);    }
-
-    /* ── Main Layout ─────────────────────────────────────── */
     .main {
-      flex: 1;
-      display: grid;
-      grid-template-columns: 1fr 360px;
-      gap: 0;
-      max-height: calc(100vh - 120px);
-      overflow: hidden;
+      flex: 1; display: grid; grid-template-columns: 1fr 380px;
+      height: calc(100vh - 120px); overflow: hidden;
     }
 
-    /* ── Ticket Panel ────────────────────────────────────── */
-    .ticket-panel {
-      padding: 28px 32px;
-      overflow-y: auto;
-      border-right: 1px solid var(--border);
-    }
+    .panel { padding: 24px 32px; overflow-y: auto; }
+    .left-panel { border-right: 1px solid var(--border); }
+    .right-panel { background: var(--surface); }
 
     .section-label {
-      font-size: .7rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: .1em;
-      color: var(--text-muted);
-      margin-bottom: 10px;
+      font-size: .7rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .1em; color: var(--text-muted); margin-bottom: 10px;
     }
 
-    /* Ticket Card */
     .ticket-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 22px;
-      margin-bottom: 20px;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .ticket-card::before {
-      content: '';
-      position: absolute;
-      top: 0; left: 0; right: 0;
-      height: 3px;
-      background: linear-gradient(90deg, var(--primary), var(--accent));
-    }
-
-    .ticket-meta {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 14px;
-    }
-
-    .ticket-id {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: .78rem;
-      color: var(--text-muted);
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 24px; margin-bottom: 24px;
+      position: relative; border-left: 4px solid var(--primary);
     }
 
     .status-pill {
-      font-size: .7rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: .08em;
-      padding: 4px 12px;
-      border-radius: 20px;
+      font-size: .65rem; font-weight: 800; text-transform: uppercase;
+      padding: 3px 10px; border-radius: 20px;
     }
+    .status-open { background: rgba(108,99,255,0.1); color: var(--primary); }
+    .status-classified { background: rgba(255,209,102,0.1); color: var(--gold); }
+    .status-resolved { background: rgba(16,185,129,0.1); color: var(--success); }
 
-    .status-open       { background: rgba(108,99,255,.15); color: var(--primary); border: 1px solid rgba(108,99,255,.3); }
-    .status-classified { background: rgba(255,209,102,.12); color: var(--gold);    border: 1px solid rgba(255,209,102,.3); }
-    .status-resolved   { background: rgba(16,185,129,.12);  color: var(--success); border: 1px solid rgba(16,185,129,.3); }
-    .status-closed     { background: rgba(107,114,128,.12); color: var(--text-muted); border: 1px solid rgba(107,114,128,.3); }
-    .status-escalated  { background: rgba(255,107,107,.12); color: var(--warn);    border: 1px solid rgba(255,107,107,.3); }
+    .priority-pill { font-size: .6rem; font-weight: 900; padding: 2px 6px; border-radius: 4px; margin-left:8px; border:1px solid currentColor; }
 
-    .ticket-body {
-      font-size: .95rem;
-      line-height: 1.65;
-      margin-bottom: 16px;
-      color: var(--text);
-    }
-
-    .history-strip {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding-top: 14px;
-      border-top: 1px solid var(--border);
-      font-size: .82rem;
-      color: var(--text-muted);
-    }
-
-    .history-strip span { font-weight: 600; color: var(--text); }
-
-    /* Step Log */
     .step-log {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 16px 20px;
-      max-height: 260px;
-      overflow-y: auto;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 10px; padding: 16px; min-height: 150px; font-family: 'JetBrains Mono', monospace;
     }
+    .step-item { font-size: .8rem; margin-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 8px; }
 
-    .step-log::-webkit-scrollbar { width: 4px; }
-    .step-log::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
-
-    .step-item {
-      display: flex;
-      align-items: flex-start;
-      gap: 10px;
-      padding: 8px 0;
-      border-bottom: 1px solid var(--border);
-      font-size: .82rem;
-    }
-
-    .step-item:last-child { border-bottom: none; }
-
-    .step-num {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: .7rem;
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      padding: 2px 6px;
-      color: var(--text-muted);
-      white-space: nowrap;
-    }
-
-    .step-action  { font-weight: 600; color: var(--primary); }
-    .step-payload { color: var(--text-muted); }
-
-    .empty-log {
-      text-align: center;
-      padding: 30px 0;
-      color: var(--text-muted);
-      font-size: .85rem;
-    }
-
-    /* ── Control Panel ───────────────────────────────────── */
-    .control-panel {
-      background: var(--surface);
-      display: flex;
-      flex-direction: column;
-      overflow-y: auto;
-    }
-
-    .control-panel::-webkit-scrollbar { width: 4px; }
-    .control-panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
-
-    .controls-inner {
-      padding: 24px 20px;
-      display: flex;
-      flex-direction: column;
-      gap: 20px;
-    }
-
-    /* Payload input */
-    .payload-input {
-      width: 100%;
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 10px 14px;
-      color: var(--text);
-      font-family: 'Inter', sans-serif;
-      font-size: .88rem;
-      outline: none;
-      transition: border-color .2s;
-    }
-
-    .payload-input:focus { border-color: var(--primary); }
-    .payload-input::placeholder { color: var(--text-muted); }
-
-    /* Action Buttons */
-    .action-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-    }
-
+    .action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; }
     .act-btn {
-      padding: 11px 8px;
-      border-radius: 8px;
-      border: 1px solid var(--border);
-      background: var(--surface2);
-      color: var(--text);
-      font-family: 'Inter', sans-serif;
-      font-size: .78rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all .2s ease;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 5px;
+      padding: 12px; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--surface2); color: var(--text); font-weight: 600;
+      font-size: .8rem; cursor: pointer; transition: 0.2s;
+    }
+    .act-btn:hover { border-color: var(--primary); background: rgba(108,99,255,0.1); }
+    .act-btn.primary { background: var(--primary); color: #fff; border: none; grid-column: span 2; }
+
+    .payload-input {
+      width: 100%; padding: 12px; border-radius: 8px; background: var(--surface2);
+      border: 1px solid var(--border); color: #fff; outline: none; margin-bottom: 16px;
     }
 
-    .act-btn:hover:not(:disabled) {
-      border-color: var(--primary);
-      background: rgba(108,99,255,.1);
-      transform: translateY(-1px);
+    .modal-overlay {
+      display: none; position: fixed; top:0; left:0; width:100%; height:100%;
+      background: rgba(0,0,0,0.8); backdrop-filter: blur(5px); z-index: 1000;
+      align-items: center; justify-content: center;
     }
-
-    .act-btn:disabled {
-      opacity: .4;
-      cursor: not-allowed;
+    .modal {
+      background: var(--surface); padding: 32px; border-radius: 20px;
+      width: 100%; max-width: 450px; border: 1px solid var(--border);
     }
+    .modal h2 { margin-bottom: 20px; }
+    .form-group { margin-bottom: 15px; }
+    .form-group label { display: block; font-size: .8rem; margin-bottom: 5px; color: var(--text-muted); }
 
-    .act-btn .icon { font-size: 1.1rem; }
-    .act-btn.primary-action {
-      grid-column: 1 / -1;
-      background: linear-gradient(135deg, var(--primary), var(--primary-dim));
-      border-color: var(--primary);
-      color: #fff;
-      font-size: .85rem;
-      padding: 13px;
-    }
-
-    .act-btn.primary-action:hover:not(:disabled) {
-      box-shadow: var(--glow);
-      transform: translateY(-1px);
-    }
-
-    .act-btn.danger-action { border-color: rgba(255,107,107,.4); }
-    .act-btn.danger-action:hover:not(:disabled) {
-      border-color: var(--warn);
-      background: rgba(255,107,107,.1);
-    }
-
-    /* Reward Box */
     .reward-box {
-      border-radius: var(--radius);
-      padding: 16px;
-      border: 1px solid var(--border);
-      display: none;
-      animation: fadeSlide .3s ease;
+      margin-top: 20px; padding: 16px; border-radius: 12px;
+      border: 1px solid var(--border); display: none;
     }
-
-    @keyframes fadeSlide {
-      from { opacity: 0; transform: translateY(8px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-
-    .reward-box.pos { background: rgba(16,185,129,.1);  border-color: rgba(16,185,129,.4); }
-    .reward-box.neg { background: rgba(255,107,107,.1); border-color: rgba(255,107,107,.4); }
-    .reward-box.neu { background: rgba(108,99,255,.1);  border-color: rgba(108,99,255,.4); }
-
-    .reward-val {
-      font-size: 2rem;
-      font-weight: 800;
-      font-family: 'JetBrains Mono', monospace;
-    }
-
-    .reward-val.pos { color: var(--success); }
-    .reward-val.neg { color: var(--warn); }
-    .reward-val.neu { color: var(--primary); }
-
-    .reward-reason {
-      font-size: .82rem;
-      color: var(--text-muted);
-      margin-top: 4px;
-      line-height: 1.4;
-    }
-
-    /* Score Card */
-    #finalScore {
-      display: none;
-      border-radius: var(--radius);
-      padding: 24px 20px;
-      background: linear-gradient(135deg, rgba(108,99,255,.12), rgba(0,212,170,.07));
-      border: 1px solid rgba(108,99,255,.35);
-      text-align: center;
-      animation: fadeSlide .4s ease;
-    }
-
-    .score-label { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--text-muted); }
-    .score-value { font-size: 3.2rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; background: linear-gradient(90deg, var(--primary), var(--accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-    .score-sub   { font-size: .78rem; color: var(--text-muted); margin-top: 4px; }
-    .score-tier  { font-size: 1rem; font-weight: 700; margin-top: 10px; }
-
-    .restart-btn {
-      margin-top: 16px;
-      width: 100%;
-      padding: 12px;
-      border-radius: 8px;
-      border: 1px solid var(--primary);
-      background: rgba(108,99,255,.15);
-      color: var(--primary);
-      font-family: 'Inter', sans-serif;
-      font-size: .88rem;
-      font-weight: 700;
-      cursor: pointer;
-      transition: all .2s ease;
-    }
-
-    .restart-btn:hover { background: rgba(108,99,255,.3); }
-
-    /* ── Spinner ─────────────────────────────────────────── */
-    .spinner {
-      display: none;
-      width: 18px; height: 18px;
-      border: 2px solid rgba(255,255,255,.2);
-      border-top-color: #fff;
-      border-radius: 50%;
-      animation: spin .6s linear infinite;
-    }
-
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    /* ── Responsive ──────────────────────────────────────── */
-    @media (max-width: 768px) {
-      .main { grid-template-columns: 1fr; max-height: none; }
-      .ticket-panel { border-right: none; border-bottom: 1px solid var(--border); }
-      header, .task-bar { padding: 14px 16px; }
-      .ticket-panel { padding: 20px 16px; }
-    }
+    .reward-val { font-size: 1.5rem; font-weight: 800; }
   </style>
 </head>
 <body>
 
-  <!-- ── Header ─────────────────────────────────────── -->
-  <header>
-    <div class="logo">
-      <div class="logo-icon">🎫</div>
-      <div>
-        <h1>AI Support Resolver</h1>
-        <div style="font-size:.7rem;color:var(--text-muted);margin-top:1px;">OpenEnv RL Environment</div>
-      </div>
-    </div>
-    <span class="header-badge">HACKATHON READY</span>
-  </header>
-
-  <!-- ── Task Selector ──────────────────────────────── -->
-  <div class="task-bar">
-    <label>Difficulty:</label>
-    <button id="btn-easy"   class="task-btn easy   active" onclick="resetEnv('easy_refund',this)">🟢 Easy — Refund</button>
-    <button id="btn-medium" class="task-btn medium"        onclick="resetEnv('medium_replacement',this)">🟡 Medium — Replacement</button>
-    <button id="btn-hard"   class="task-btn hard"          onclick="resetEnv('hard_delay_case',this)">🔴 Hard — Delay Case</button>
-  </div>
-
-  <!-- ── Main ──────────────────────────────────────── -->
-  <div class="main">
-
-    <!-- Left: Ticket + Log -->
-    <div class="ticket-panel">
-      <div class="section-label">Active Ticket</div>
-
-      <div class="ticket-card" id="ticketCard">
-        <div class="ticket-meta">
-          <span class="ticket-id" id="ticketId">ID: --------</span>
-          <span class="status-pill status-open" id="statusBadge">open</span>
-        </div>
-        <div class="ticket-body" id="ticketText">Select a difficulty level to load a ticket…</div>
-        <div class="history-strip">
-          👤 <span id="customerHistory">—</span>
-        </div>
-      </div>
-
-      <div class="section-label" style="margin-top:24px;">Step Log</div>
-      <div class="step-log" id="stepLog">
-        <div class="empty-log" id="emptyLog">No actions taken yet.</div>
-      </div>
-    </div>
-
-    <!-- Right: Controls -->
-    <div class="control-panel">
-      <div class="controls-inner">
-
-        <!-- Payload -->
-        <div>
-          <div class="section-label">Classification Label</div>
-          <input id="actionPayload" class="payload-input" type="text"
-                 placeholder="e.g. refund, replacement, shipping_delay" />
-          <div style="font-size:.72rem;color:var(--text-muted);margin-top:6px;">
-            Required for <strong>Classify Issue</strong> action.
-          </div>
-        </div>
-
-        <!-- Actions -->
-        <div>
-          <div class="section-label">Available Actions</div>
-          <div class="action-grid">
-            <button class="act-btn" id="act-classify"     onclick="takeAction('classify_issue')">
-              <span class="icon">🏷️</span>Classify Issue
-            </button>
-            <button class="act-btn" id="act-info"         onclick="takeAction('request_more_info')">
-              <span class="icon">❓</span>Request Info
-            </button>
-            <button class="act-btn" id="act-refund"       onclick="takeAction('offer_refund')">
-              <span class="icon">💰</span>Offer Refund
-            </button>
-            <button class="act-btn" id="act-replacement"  onclick="takeAction('offer_replacement')">
-              <span class="icon">📦</span>Replacement
-            </button>
-            <button class="act-btn danger-action" id="act-escalate" onclick="takeAction('escalate')">
-              <span class="icon">⬆️</span>Escalate
-            </button>
-            <button class="act-btn primary-action" id="act-close" onclick="takeAction('close_ticket')">
-              <span class="icon">✅</span> Close Ticket
-            </button>
-          </div>
-        </div>
-
-        <!-- Reward feedback -->
-        <div class="reward-box" id="rewardBox">
-          <div class="reward-val" id="rewardVal">+0.00</div>
-          <div class="reward-reason" id="rewardReason">—</div>
-        </div>
-
-        <!-- Final score -->
-        <div id="finalScore">
-          <div class="score-label">Final Grade</div>
-          <div class="score-value" id="scoreValue">0.00</div>
-          <div class="score-sub">Clamped between 0.001 – 0.999</div>
-          <div class="score-tier" id="scoreTier"></div>
-          <button class="restart-btn" onclick="location.reload()">↩ Try Another Task</button>
-        </div>
-
-      </div>
+<header>
+  <div class="logo">
+    <div class="logo-icon">🎫</div>
+    <div>
+      <h2 style="font-size: 1.1rem; font-weight: 800;">AI Support Resolver</h2>
+      <p style="font-size: 0.65rem; color: var(--text-muted);">OpenEnv Dispatch Engine</p>
     </div>
   </div>
+  <div style="display:flex; align-items:center; gap:16px;">
+    <div id="queueCounter" class="queue-badge" style="display:none;">
+      <span>📦</span> <span id="queueSize">0</span> in Queue
+    </div>
+    <button class="task-btn" style="background:var(--primary); color:#fff; border:none;" onclick="openModal()">➕ Raise Ticket</button>
+  </div>
+</header>
 
-  <script>
-    let sessionId = null;
-    let stepCount  = 0;
+<div class="task-bar">
+  <label style="font-size: .7rem; font-weight: 700; color: var(--text-muted);">SESSION:</label>
+  <button id="btn-easy" class="task-btn active" onclick="resetEnv('easy_refund', this)">Easy Session</button>
+  <button id="btn-medium" class="task-btn" onclick="resetEnv('medium_replacement', this)">Medium Session</button>
+  <button id="btn-hard" class="task-btn" onclick="resetEnv('hard_delay_case', this)">Hard Session</button>
+</div>
 
-    // ── Reset ──────────────────────────────────────────
-    async function resetEnv(taskId, btn) {
-      // Update active button
-      document.querySelectorAll('.task-btn').forEach(b => b.classList.remove('active'));
-      if (btn) btn.classList.add('active');
+<div class="main">
+  <div class="panel left-panel">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+       <div class="section-label">Active Ticket</div>
+       <span id="ticketPrio" class="priority-pill" style="color:var(--gold); border-color:var(--gold);">Medium</span>
+    </div>
+    
+    <div class="ticket-card">
+      <div style="display:flex; justify-content:space-between; margin-bottom:12px;">
+        <span id="ticketId" style="font-family:monospace; font-size:.8rem; color:var(--text-muted);">ID: --------</span>
+        <span id="statusBadge" class="status-pill status-open">open</span>
+      </div>
+      <div id="ticketText" style="font-size:.95rem; line-height:1.6; margin-bottom:16px;">Loading ticket...</div>
+      <div style="border-top:1px solid var(--border); padding-top:12px; font-size:.8rem; color:var(--text-muted);">
+        👤 History: <span id="customerHistory">—</span>
+      </div>
+    </div>
 
-      // Reset UI state
-      stepCount = 0;
-      document.getElementById('stepLog').innerHTML = '<div class="empty-log" id="emptyLog">No actions taken yet.</div>';
-      document.getElementById('rewardBox').style.display  = 'none';
-      document.getElementById('finalScore').style.display = 'none';
-      setActionsDisabled(false);
+    <div class="section-label">Processing Logs</div>
+    <div id="stepLog" class="step-log"></div>
+  </div>
 
-      try {
-        const res  = await fetch('/reset', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ task_id: taskId })
-        });
-        const data = await res.json();
-        sessionId  = data.session_id;
-        updateTicket(data.state);
-      } catch(e) {
-        console.error('Reset failed:', e);
-      }
-    }
+  <div class="panel right-panel">
+    <div class="section-label">Classification</div>
+    <input id="actionPayload" class="payload-input" placeholder="Enter Label (e.g. refund)" />
+    <div id="currentLabel" style="font-size:.7rem; color:var(--accent); font-weight:700; margin-bottom:20px; display:none;">
+      IDENTITY: <span id="labelVal"></span>
+    </div>
 
-    // ── Step ───────────────────────────────────────────
-    async function takeAction(actionType) {
-      if (!sessionId) { alert('Please select a task first.'); return; }
+    <div class="section-label">Actions</div>
+    <div class="action-grid">
+      <button class="act-btn" onclick="takeAction('classify_issue')">🏷️ Classify</button>
+      <button class="act-btn" onclick="takeAction('request_more_info')">❓ Request Info</button>
+      <button class="act-btn" onclick="takeAction('offer_refund')">💰 Refund</button>
+      <button class="act-btn" onclick="takeAction('offer_replacement')">📦 Replace</button>
+      <button class="act-btn" style="border-color:var(--warn); color:var(--warn);" onclick="takeAction('escalate')">⬆️ Escalate</button>
+      <button class="act-btn primary" onclick="takeAction('close_ticket')">✅ Resolve & Next</button>
+    </div>
 
-      const payload = document.getElementById('actionPayload').value.trim() || null;
-      setActionsDisabled(true);
+    <div id="rewardBox" class="reward-box">
+      <div id="rewardVal" class="reward-val">+0.00</div>
+      <div id="rewardReason" style="font-size:.8rem; color:var(--text-muted);">Reasoning...</div>
+    </div>
 
-      try {
-        const res  = await fetch('/step', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ session_id: sessionId, action: { action_type: actionType, payload } })
-        });
-        const data = await res.json();
+    <div id="finalScore" style="display:none; margin-top:30px; text-align:center;">
+       <div class="section-label">Session Grade</div>
+       <div id="scoreValue" style="font-size:3rem; font-weight:900; color:var(--primary);">0.00</div>
+       <button class="task-btn" style="margin-top:15px; width:100%;" onclick="location.reload()">New Session</button>
+    </div>
+  </div>
+</div>
 
-        updateTicket(data.state);
-        appendStepLog(actionType, payload, data.reward);
-        showReward(data.reward);
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <h2>Raise New Ticket</h2>
+    <div class="form-group">
+      <label>Subject</label>
+      <input id="newSubject" class="payload-input" style="margin-bottom:0;" />
+    </div>
+    <div class="form-group">
+      <label>Priority</label>
+      <select id="newPriority" class="payload-input" style="margin-bottom:0;">
+        <option value="low">Low</option>
+        <option value="medium" selected>Medium</option>
+        <option value="high">High</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Issue Type</label>
+      <select id="newCategory" class="payload-input" style="margin-bottom:0;">
+        <option value="refund">Refund</option>
+        <option value="replacement">Replacement</option>
+        <option value="shipping_delay">Shipping Delay</option>
+      </select>
+    </div>
+    <button class="act-btn primary" onclick="submitTicket()">Submit to Engine</button>
+    <button class="act-btn" style="width:100%; margin-top:8px;" onclick="closeModal()">Cancel</button>
+  </div>
+</div>
 
-        if (data.score !== null && data.score !== undefined) {
-          showFinalScore(data.score);
-        } else {
-          setActionsDisabled(false);
-        }
+<script>
+  let sessionId = null;
+  function openModal() { document.getElementById('modal').style.display = 'flex'; }
+  function closeModal() { document.getElementById('modal').style.display = 'none'; }
 
-        document.getElementById('actionPayload').value = '';
-      } catch(e) {
-        console.error('Step failed:', e);
-        setActionsDisabled(false);
-      }
-    }
+  async function submitTicket() {
+    const payload = {
+      session_id: sessionId,
+      subject: document.getElementById('newSubject').value,
+      body: "User created ticket.",
+      customer_history: "N/A",
+      priority: document.getElementById('newPriority').value,
+      category: document.getElementById('newCategory').value
+    };
+    const res = await fetch('/raise_ticket', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+    const data = await res.json();
+    updateQueueDisplay(data.queue_size);
+    closeModal();
+  }
 
-    // ── UI Helpers ─────────────────────────────────────
-    function updateTicket(state) {
-      if (!state) return;
-      document.getElementById('ticketId').textContent       = `ID: ${state.ticket_id}`;
-      document.getElementById('ticketText').textContent     = state.ticket_text;
-      document.getElementById('customerHistory').textContent = state.customer_history;
+  function updateQueueDisplay(size) {
+    const badge = document.getElementById('queueCounter');
+    if (size > 0) {
+      badge.style.display = 'flex';
+      document.getElementById('queueSize').textContent = size;
+    } else badge.style.display = 'none';
+  }
 
-      const badge = document.getElementById('statusBadge');
-      badge.textContent = state.status;
-      badge.className   = `status-pill status-${state.status}`;
-    }
+  async function resetEnv(taskId, btn) {
+    document.querySelectorAll('.task-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const res = await fetch('/reset', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({task_id: taskId})});
+    const data = await res.json();
+    sessionId = data.session_id;
+    updateTicket(data.state);
+    document.getElementById('stepLog').innerHTML = '';
+    document.getElementById('rewardBox').style.display = 'none';
+    document.getElementById('finalScore').style.display = 'none';
+  }
 
-    function appendStepLog(action, payload, reward) {
-      const log = document.getElementById('stepLog');
-      const empty = document.getElementById('emptyLog');
-      if (empty) empty.remove();
+  async function takeAction(type) {
+    const payload = document.getElementById('actionPayload').value;
+    const res = await fetch('/step', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({session_id: sessionId, action: {action_type: type, payload}})});
+    const data = await res.json();
+    updateTicket(data.state);
+    appendLog(type, payload, data.reward);
+    showReward(data.reward);
+    if (data.done) showScore(data.score);
+    document.getElementById('actionPayload').value = '';
+  }
 
-      stepCount++;
-      const item = document.createElement('div');
-      item.className = 'step-item';
-      item.innerHTML = `
-        <span class="step-num">#${stepCount}</span>
-        <div>
-          <span class="step-action">${action}</span>
-          ${payload ? `<span class="step-payload"> → ${payload}</span>` : ''}
-          <div style="font-size:.75rem;color:${reward.value>=0?'var(--success)':'var(--warn)'}; margin-top:3px;">
-            ${reward.value >= 0 ? '+' : ''}${reward.value.toFixed(3)} — ${reward.reason}
-          </div>
-        </div>`;
-      log.appendChild(item);
-      log.scrollTop = log.scrollHeight;
-    }
+  function updateTicket(state) {
+    if (!state) return;
+    document.getElementById('ticketId').textContent = "ID: " + state.ticket_id;
+    document.getElementById('ticketText').textContent = state.ticket_text;
+    document.getElementById('customerHistory').textContent = state.customer_history;
+    const badge = document.getElementById('statusBadge');
+    badge.textContent = state.status;
+    badge.className = "status-pill status-" + state.status;
+    const prio = document.getElementById('ticketPrio');
+    prio.textContent = state.priority;
+    const p = state.priority;
+    prio.style.color = p == 'high' ? '#ff6b6b' : (p == 'low' ? '#6c63ff' : '#ffd166');
+    prio.style.borderColor = prio.style.color;
+    updateQueueDisplay(state.queue_remaining);
+    if (state.issue_category) {
+      document.getElementById('currentLabel').style.display = 'block';
+      document.getElementById('labelVal').textContent = state.issue_category;
+    } else document.getElementById('currentLabel').style.display = 'none';
+  }
 
-    function showReward(reward) {
-      const box    = document.getElementById('rewardBox');
-      const val    = document.getElementById('rewardVal');
-      const reason = document.getElementById('rewardReason');
+  function appendLog(action, payload, reward) {
+    const log = document.getElementById('stepLog');
+    const item = document.createElement('div');
+    item.className = 'step-item';
+    item.innerHTML = `<strong>${action}</strong> ${payload ? '→ ' + payload : ''} <span style="color:${reward.value >= 0 ? 'var(--success)' : 'var(--warn)'}">(${reward.value.toFixed(2)})</span>`;
+    log.prepend(item);
+  }
 
-      const cls = reward.value > 0 ? 'pos' : reward.value < 0 ? 'neg' : 'neu';
-      box.className = `reward-box ${cls}`;
-      val.className = `reward-val ${cls}`;
-      val.textContent    = (reward.value >= 0 ? '+' : '') + reward.value.toFixed(3);
-      reason.textContent = reward.reason;
-      box.style.display  = 'block';
-    }
+  function showReward(reward) {
+    const box = document.getElementById('rewardBox');
+    box.style.display = 'block';
+    document.getElementById('rewardVal').textContent = (reward.value >= 0 ? '+' : '') + reward.value.toFixed(2);
+    document.getElementById('rewardVal').style.color = reward.value >= 0 ? 'var(--success)' : 'var(--warn)';
+    document.getElementById('rewardReason').textContent = reward.reason;
+  }
 
-    function showFinalScore(score) {
-      const box = document.getElementById('finalScore');
-      document.getElementById('scoreValue').textContent = score.toFixed(4);
+  function showScore(score) {
+    document.getElementById('finalScore').style.display = 'block';
+    document.getElementById('scoreValue').textContent = score.toFixed(2);
+  }
 
-      const tier =
-        score >= 0.85 ? '🏆 Grand Slam — Perfect Resolution'  :
-        score >= 0.65 ? '🥈 Expert — Great Job!'              :
-        score >= 0.45 ? '🥉 Contributor — Keep Practising'    :
-                        '📘 Novice — Try a Different Approach';
-
-      document.getElementById('scoreTier').textContent = tier;
-      box.style.display = 'block';
-      setActionsDisabled(true);
-    }
-
-    function setActionsDisabled(disabled) {
-      document.querySelectorAll('.act-btn').forEach(b => b.disabled = disabled);
-    }
-
-    // ── Init ───────────────────────────────────────────
-    window.addEventListener('DOMContentLoaded', () => {
-      resetEnv('easy_refund', document.getElementById('btn-easy'));
-    });
-  </script>
-
+  window.onload = () => resetEnv('easy_refund', document.getElementById('btn-easy'));
+</script>
 </body>
 </html>
