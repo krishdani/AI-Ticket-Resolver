@@ -2,32 +2,29 @@ spec_version: 1
 type: space
 runtime: fastapi
 name: ai_customer_support_resolver
-version: 1.0.0
+version: 1.1.0
 description: >
-  Reinforcement Learning environment for resolving customer support tickets.
-  An agent must classify issues, choose the correct resolution action,
-  and close tickets efficiently to maximise reward.
+  Professional RL environment for customer support ticket resolution.
+  Features 3 tasks with increasing difficulty (1-4 steps) and multi-signal rewards.
 
 tasks:
-  - id: easy_refund
-    name: Easy — Refund Request
+  - id: easy_spam
+    name: Easy — Spam Filtering
     difficulty: easy
     grader: env.grader.grade_trajectory
-    description: Customer received a broken item and wants a full refund.
+    description: Handle incoming spam messages efficiently.
 
-  - id: medium_replacement
-    name: Medium — Replacement Request
+  - id: medium_refund
+    name: Medium — Refund Request
     difficulty: medium
     grader: env.grader.grade_trajectory
-    description: Customer wants a working replacement, not a refund.
+    description: Process a standard refund for an empty package.
 
-  - id: hard_delay_case
-    name: Hard — Shipping Delay
+  - id: hard_damaged_replacement
+    name: Hard — Complex Replacement
     difficulty: hard
     grader: env.grader.grade_trajectory
-    description: >
-      Package is in transit. Customer still needs the item — do NOT refund.
-      Correct action is to request more info, then close.
+    description: High-value replacement for a VIP customer with damaged tech.
 
 action_schema:
   type: object
@@ -69,5 +66,6 @@ endpoints:
   step:  POST /step
   state: GET  /state
   health: GET /health
+
 app: app:app
 port: 7860

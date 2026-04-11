@@ -1,25 +1,15 @@
-"""
-AI Customer Support RL Environment — OpenEnv compliant FastAPI app.
-"""
 import os
-import json
-from typing import Optional, List, Dict, Any
-
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse, HTMLResponse
-from fastapi.staticfiles import StaticFiles
+import uuid
+import gradio as gr
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-
 from env.env import CustomerSupportEnv
-from env.models import Action, TicketState, Reward
-from env.grader import grade_trajectory
+from env.models import Action
 from env.tasks import TASKS
+from env.grader import grade_trajectory
 
-app = FastAPI(title="AI Customer Support RL Environment", version="1.0.0")
+app = FastAPI(title="AI Customer Support resolver")
 
-# CORS — required for HuggingFace Space iframe embeds
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -28,126 +18,150 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Debug helper — surfaces 422 errors clearly
-@app.exception_handler(RequestValidationError)
-async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    import sys
-    print(f"Validation Error at {request.url.path}: {exc.errors()}", file=sys.stderr)
-    return JSONResponse(
-        status_code=422,
-        content={"detail": exc.errors(), "body": exc.body},
-    )
+# Shared state for sessions
+sessions = {}
 
-# Mount static files
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# --- OPENENV API ENDPOINTS ---
 
-# In-memory session store
-envs: Dict[str, CustomerSupportEnv] = {}
+@app.post("/reset")
+async def reset(request: Request):
+    try:
+        data = await request.json()
+    except:
+        data = {}
+    
+    task_id = data.get("task_id", "medium_refund")
+    session_id = str(uuid.uuid4())
+    env = CustomerSupportEnv(task_id=task_id)
+    obs = env.reset()
+    sessions[session_id] = env
+    
+    return {
+        "session_id": session_id,
+        "observation": obs.model_dump(),
+        "task_name": TASKS[task_id]["name"]
+    }
 
+@app.post("/step")
+async def step(request: Request):
+    data = await request.json()
+    session_id = data.get("session_id")
+    action_data = data.get("action")
+    
+    if session_id not in sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    env = sessions[session_id]
+    action = Action(**action_data)
+    obs, reward, done, info = env.step(action)
+    
+    score = None
+    if done:
+        score = grade_trajectory(env.task_id, obs.history)
+        
+    return {
+        "observation": obs.model_dump(),
+        "reward": reward,
+        "done": done,
+        "info": info,
+        "score": score
+    }
 
-class StepRequest(BaseModel):
-    session_id: str
-    action: Action
-
-
-# ---------------------------------------------------------------------------
-# Core Endpoints
-# ---------------------------------------------------------------------------
-
-@app.get("/", response_class=HTMLResponse)
-async def get_index():
-    with open("static/index.html", "r", encoding="utf-8") as f:
-        return f.read()
-
+@app.get("/state")
+async def get_state(session_id: str):
+    if session_id not in sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return sessions[session_id].state().model_dump()
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "environment": "AI Customer Support RL Environment"}
+    return {"status": "ok"}
 
+# --- GRADIO INTERFACE ---
 
-@app.post("/reset")
-async def reset(request: Request) -> Dict[str, Any]:
-    """
-    OpenEnv /reset endpoint.
-    Accepts POST with no body, empty body, or JSON body {"task_id": "..."}.
-    The OpenEnv checker sends a POST with NO body — we must handle that gracefully.
-    """
-    task_id = "easy_refund"
-    try:
-        body_bytes = await request.body()
-        if body_bytes:
-            body_json = json.loads(body_bytes)
-            task_id = body_json.get("task_id", "easy_refund")
-    except Exception:
-        pass  # No body / invalid JSON → use default
-
-    session_id = os.urandom(8).hex()
+def gradio_reset(task_name):
+    task_id = next(tid for tid, t in TASKS.items() if t["name"] == task_name)
+    session_id = "gradio_session_" + str(uuid.uuid4())[:8]
     env = CustomerSupportEnv(task_id=task_id)
-    state = env.reset()
-    envs[session_id] = env
-    return {"session_id": session_id, "state": state.model_dump()}
+    obs = env.reset()
+    sessions[session_id] = env
+    
+    history_html = "<i>No actions taken yet.</i>"
+    return session_id, obs.ticket_text, obs.customer_history, obs.status, history_html, 0.0, "Ready."
 
-
-@app.post("/step")
-async def step(req: StepRequest) -> Dict[str, Any]:
-    if req.session_id not in envs:
-        raise HTTPException(status_code=404, detail="Session not found. Call /reset first.")
-
-    env = envs[req.session_id]
-    state, reward_val, done, info = env.step(req.action)
-
-    score = None
+def gradio_step(session_id, action_type, payload):
+    if not session_id or session_id not in sessions:
+        return "Error", "", "", "", "", 0.0, "Please reset first."
+    
+    env = sessions[session_id]
+    action = Action(action_type=action_type, payload=payload)
+    obs, reward, done, info = env.step(action)
+    
+    # Format history
+    history_html = "<ul style='list-style-type: none; padding: 0;'>"
+    for h in obs.history:
+        color = "#4CAF50" if "Correct" in info.get("reason", "") else "#2196F3"
+        history_html += f"<li style='margin-bottom: 5px; border-left: 4px solid {color}; padding-left: 10px;'><b>Step {h['step']}:</b> {h['action']} ({h['payload'] or ''})</li>"
+    history_html += "</ul>"
+    
+    status_label = f"{obs.status.upper()}"
     if done:
-        score = grade_trajectory(env.task_id, state.history)
-        # Keep env for a bit or delete? Usually keep for /state check unless it's a one-shot.
-        # del envs[req.session_id] 
+        score = grade_trajectory(env.task_id, obs.history)
+        status_label += f" | FINAL SCORE: {score:.2f}"
+    
+    return session_id, obs.ticket_text, obs.customer_history, status_label, history_html, reward, info.get("reason", "")
 
-    return {
-        "state": state.model_dump(),
-        "reward": {"value": reward_val, "reason": info.get("reason", ""), "done": done},
-        "done": done,
-        "score": score,
-    }
+with gr.Blocks(theme=gr.themes.Soft(primary_hue="blue", secondary_hue="indigo")) as demo:
+    gr.Markdown("# 🎫 AI Customer Support Ticket Resolver")
+    gr.Markdown("Interactive environment for training AI support agents. Select a task and try to resolve it step-by-step.")
+    
+    session_id_state = gr.State("")
+    
+    with gr.Row():
+        with gr.Column(scale=1):
+            task_dropdown = gr.Dropdown(choices=[t["name"] for t in TASKS.values()], value=TASKS["medium_refund"]["name"], label="Select Task")
+            reset_btn = gr.Button("♻️ Initialize / Reset Environment", variant="primary")
+            
+            with gr.Group():
+                gr.Markdown("### 🤖 Take Action")
+                action_type = gr.Dropdown(
+                    choices=["classify_issue", "request_more_info", "offer_refund", "offer_replacement", "escalate", "close_ticket"],
+                    value="classify_issue",
+                    label="Action Type"
+                )
+                payload = gr.Textbox(placeholder="e.g. refund, replacement, or message text...", label="Action Payload")
+                step_btn = gr.Button("▶️ Submit Action", variant="secondary")
 
+        with gr.Column(scale=2):
+            with gr.Row():
+                status_box = gr.Label(value="IDLE", label="Environment Status")
+                reward_box = gr.Number(value=0.0, label="Last Reward")
+            
+            with gr.Tabs():
+                with gr.TabItem("📋 Ticket Details"):
+                    ticket_text = gr.Textbox(label="Customer Message", interactive=False)
+                    history_context = gr.Textbox(label="Customer History", interactive=False)
+                
+                with gr.TabItem("📜 Interaction Logs"):
+                    logs_html = gr.HTML("<i>No actions taken yet.</i>")
+            
+            feedback_box = gr.Textbox(label="Execution Feedback", interactive=False)
 
-@app.get("/state")
-def get_state(session_id: str) -> Dict[str, Any]:
-    if session_id not in envs:
-        raise HTTPException(status_code=404, detail="Session not found.")
-    return envs[session_id].state().model_dump()
+    reset_btn.click(
+        gradio_reset, 
+        inputs=[task_dropdown], 
+        outputs=[session_id_state, ticket_text, history_context, status_box, logs_html, reward_box, feedback_box]
+    )
+    
+    step_btn.click(
+        gradio_step,
+        inputs=[session_id_state, action_type, payload],
+        outputs=[session_id_state, ticket_text, history_context, status_box, logs_html, reward_box, feedback_box]
+    )
 
-
-@app.get("/tasks")
-def get_tasks() -> Dict[str, Any]:
-    return {
-        task_id: {
-            "ticket_text": data["ticket_text"],
-            "customer_history": data["customer_history"],
-            "difficulty": data["difficulty"],
-            "expected_sequence": data["expected_sequence"],
-        }
-        for task_id, data in TASKS.items()
-    }
-
-
-@app.get("/validate")
-def validate() -> Dict[str, Any]:
-    """Quick sanity check used by openenv validate."""
-    results = []
-    for task_id in TASKS:
-        env = CustomerSupportEnv(task_id=task_id)
-        state = env.reset()
-        seq = TASKS[task_id]["expected_sequence"]
-        rewards = []
-        for action_type in seq:
-            payload = TASKS[task_id].get("expected_category", "") if action_type == "classify_issue" else None
-            _, r_val, done, info = env.step(Action(action_type=action_type, payload=payload))
-            rewards.append(r_val)
-        score = grade_trajectory(task_id, env.state.history)
-        results.append({"task_id": task_id, "score": score, "rewards": rewards})
-    return {"status": "ok", "results": results}
-
+# Mount Gradio into FastAPI
+app = gr.mount_gradio_app(app, demo, path="/")
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app:app", host="0.0.0.0", port=7860, reload=False)
+    uvicorn.run(app, host="0.0.0.0", port=7860)
