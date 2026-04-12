@@ -99,14 +99,14 @@ async def run_task(task_id: str):
 
     except Exception as e:
         # Log step with error if something fails internally
-        print(f"[STEP] step={step_count+1} action=error reward=0.00 done=true error={str(e)}", flush=True)
+        print(f"[STEP] step={step_count+1} action=error reward=0.01 done=true error={str(e)}", flush=True)
         success = False
     finally:
-        # [END] success=<true|false> steps=<n> rewards=<r1,r2,...,rn>
+        # [END] success=<true|false> steps=<n> score=<0.00> rewards=<r1,r2,...,rn>
         rewards_str = ",".join([f"{r:.2f}" for r in rewards])
         print(
             f"[END] success={str(success).lower()} steps={step_count} "
-            f"rewards={rewards_str}",
+            f"score={score:.2f} rewards={rewards_str}",
             flush=True
         )
 

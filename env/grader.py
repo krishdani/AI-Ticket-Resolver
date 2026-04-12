@@ -1,8 +1,8 @@
 from typing import List, Dict, Any
 
 def safe_score(score: float) -> float:
-    """Clamps score strictly to (0.001, 0.999) to satisfy OpenEnv validation."""
-    return max(0.001, min(score, 0.999))
+    """Clamps score strictly to (0.01, 0.99) to satisfy OpenEnv validation."""
+    return max(0.01, min(score, 0.99))
 
 
 def grade_trajectory(task_id: str, trajectory: List[Dict[str, Any]]) -> float:
@@ -14,7 +14,7 @@ def grade_trajectory(task_id: str, trajectory: List[Dict[str, Any]]) -> float:
     - Overall efficiency.
     """
     if not trajectory:
-        return 0.001
+        return 0.01
 
     total_tickets_attempted = 0
     correctly_classified = 0

@@ -3,6 +3,7 @@ from typing import Tuple, Dict, Any
 from openenv.core.env_server.interfaces import Environment
 from .models import TicketState, Action
 from .tasks import TASKS
+from .grader import safe_score
 
 class CustomerSupportEnv(Environment):
     def __init__(self, task_id: str = "easy_refund"):
@@ -148,4 +149,4 @@ class CustomerSupportEnv(Environment):
                     done = True
 
         info = {"reason": reason, "task_id": self.task_id}
-        return self._state, reward_val, done, info
+        return self._state, safe_score(reward_val), done, info
