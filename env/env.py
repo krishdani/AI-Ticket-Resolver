@@ -34,40 +34,43 @@ class CustomerSupportEnv(Environment):
         current = self.queue[0]
         self.current_ticket = current
         
-        self.state = TicketState(
+        # Preserve history if it exists
+        old_history = getattr(self, "_state", None) and self._state.history or []
+        
+        self._state = TicketState(
             ticket_id=current["id"],
             ticket_text=current["text"],
             customer_history=current["history"],
             current_step=0,
             status="open",
-            history=[],
+            history=old_history,
             priority=current["priority"],
             queue_remaining=len(self.queue) - 1
         )
-        return self.state
+        return self._state
 
     def state(self) -> TicketState:
-        return self.state
+        return self._state
 
     def step(self, action: Action) -> Tuple[TicketState, float, bool, Dict[str, Any]]:
-        self.state.current_step += 1
+        self._state.current_step += 1
         reward_val = 0.0
         reason = ""
         done = False
 
         action_type = action.action_type
-        self.state.history.append({"step": self.state.current_step, "action": action_type, "payload": action.payload})
+        self._state.history.append({"step": self._state.current_step, "action": action_type, "payload": action.payload})
 
         # Logic for classifications
         if action_type == "classify_issue":
-            if self.state.status == "open":
+            if self._state.status == "open":
                 expected = self.current_ticket["category"].lower()
                 provided = (action.payload or "").lower()
                 if provided == expected or (expected in provided and len(provided) > 2):
                     reward_val = 0.3
                     reason = f"Correct classification: {action.payload}"
-                    self.state.status = "classified"
-                    self.state.issue_category = action.payload
+                    self._state.status = "classified"
+                    self._state.issue_category = action.payload
                 else:
                     reward_val = 0.0
                     reason = f"Incorrect classification: {action.payload}. (No reward)"
@@ -80,7 +83,7 @@ class CustomerSupportEnv(Environment):
             if self.current_ticket["category"] == "refund":
                 reward_val = 0.5
                 reason = "Correct resolution: Refund offered"
-                self.state.status = "resolved"
+                self._state.status = "resolved"
             else:
                 reward_val = 0.0
                 reason = "Refund was not the correct action. (No reward)"
@@ -89,7 +92,7 @@ class CustomerSupportEnv(Environment):
             if self.current_ticket["category"] == "replacement":
                 reward_val = 0.5
                 reason = "Correct resolution: Replacement offered"
-                self.state.status = "resolved"
+                self._state.status = "resolved"
             else:
                 reward_val = 0.0
                 reason = "Replacement was not the correct action. (No reward)"
@@ -103,10 +106,10 @@ class CustomerSupportEnv(Environment):
                 reason = "Unnecessary info request. (No reward)"
 
         elif action_type == "close_ticket":
-            if self.state.status in ["resolved", "classified"] or self.current_ticket["category"] == "shipping_delay":
+            if self._state.status in ["resolved", "classified"] or self.current_ticket["category"] == "shipping_delay":
                 reward_val = 0.2
                 reason = "Ticket closed correctly"
-                self.state.status = "closed"
+                self._state.status = "closed"
                 
                 # Check if there are more tickets in queue
                 self.queue.pop(0)
@@ -123,7 +126,7 @@ class CustomerSupportEnv(Environment):
         elif action_type == "escalate":
             reward_val = 0.0
             reason = "Escalated to human supervisor. (No reward)"
-            self.state.status = "escalated"
+            self._state.status = "escalated"
             
             # Logic: Load next ticket even if escalated?
             self.queue.pop(0)
@@ -133,10 +136,10 @@ class CustomerSupportEnv(Environment):
                 done = True
 
         # Penalty for too many steps on one ticket (Efficiency)
-        if self.state.current_step > 5:
+        if self._state.current_step > 5:
             # We don't subtract, we just might cap future rewards or just log it
             reason += " (Efficiency warning: took more than 5 steps)"
-            if self.state.current_step >= 8:
+            if self._state.current_step >= 8:
                 # Force next ticket or end
                 self.queue.pop(0)
                 if self.queue:
@@ -145,4 +148,4 @@ class CustomerSupportEnv(Environment):
                     done = True
 
         info = {"reason": reason, "task_id": self.task_id}
-        return self.state, reward_val, done, info
+        return self._state, reward_val, done, info

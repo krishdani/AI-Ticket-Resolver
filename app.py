@@ -151,10 +151,10 @@ def get_state(session_id: str) -> Dict[str, Any]:
 def get_tasks() -> Dict[str, Any]:
     return {
         task_id: {
-            "ticket_text": data["ticket_text"],
-            "customer_history": data["customer_history"],
-            "difficulty": data["difficulty"],
-            "expected_sequence": data["expected_sequence"],
+            "ticket_text": data[0]["ticket_text"],
+            "customer_history": data[0]["customer_history"],
+            "difficulty": task_id.split("_")[0],
+            "expected_sequence": ["classify_issue", "offer_refund" if "refund" in task_id else "offer_replacement" if "replacement" in task_id else "request_more_info", "close_ticket"],
         }
         for task_id, data in TASKS.items()
     }
@@ -164,20 +164,39 @@ def get_tasks() -> Dict[str, Any]:
 def validate() -> Dict[str, Any]:
     """Quick sanity check used by openenv validate."""
     results = []
-    for task_id in TASKS:
+    for task_id, data_list in TASKS.items():
         env = CustomerSupportEnv(task_id=task_id)
         state = env.reset()
-        seq = TASKS[task_id]["expected_sequence"]
+        
+        # Determine sequence based on first ticket's category
+        category = data_list[0].get("category", "refund")
+        action_seq = ["classify_issue"]
+        if category == "refund":
+            action_seq.append("offer_refund")
+        elif category == "replacement":
+            action_seq.append("offer_replacement")
+        elif category == "shipping_delay":
+            action_seq.append("request_more_info")
+        action_seq.append("close_ticket")
+        
         rewards = []
-        for action_type in seq:
-            payload = TASKS[task_id].get("expected_category", "") if action_type == "classify_issue" else None
+        for action_type in action_seq:
+            payload = category if action_type == "classify_issue" else None
             _, r_val, done, info = env.step(Action(action_type=action_type, payload=payload))
             rewards.append(r_val)
-        score = grade_trajectory(task_id, env.state.history)
+        
+        # We only grade the first ticket for internal validation
+        from env.grader import grade_trajectory
+        score = grade_trajectory(task_id, env.state().history)
         results.append({"task_id": task_id, "score": score, "rewards": rewards})
+        
     return {"status": "ok", "results": results}
 
 
-if __name__ == "__main__":
+def main():
     import uvicorn
     uvicorn.run("app:app", host="0.0.0.0", port=7860, reload=False)
+
+
+if __name__ == "__main__":
+    main()
