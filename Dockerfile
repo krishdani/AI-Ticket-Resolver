@@ -13,5 +13,5 @@ COPY . .
 # Expose HuggingFace Space port
 EXPOSE 7860
 
-# Use the installed script entry point
-CMD ["server"]
+# Run with uvicorn directly
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "7860"]
