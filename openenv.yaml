@@ -69,5 +69,5 @@ endpoints:
   step:  POST /step
   state: GET  /state
   health: GET /health
-app: app:app
+app: server.app:app
 port: 7860
